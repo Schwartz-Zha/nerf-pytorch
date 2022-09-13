@@ -1,8 +1,13 @@
+from math import sqrt
+from turtle import forward, width
 import torch
 # torch.autograd.set_detect_anomaly(True)
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+
+from einops import rearrange, repeat
+from einops.layers.torch import Rearrange
 
 
 # Misc
@@ -94,13 +99,33 @@ class NeRF(nn.Module):
             self.output_linear = nn.Linear(W, output_ch)
 
     def forward(self, x):
+
+        # print('DEBUG in NeRF class')
+        # print('Inspect network input shape')
+        # print(x.shape)
+        # print('self.input_ch ')
+        # print(self.input_ch)
+        # print('self.input_ch_views')
+        # print(self.input_ch_views)
+
         input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
         h = input_pts
+
+        # print('input_pts shape')
+        # print(input_pts.shape)
+
+        # print('input_views.shape')
+        # print(input_views.shape)
+
+
         for i, l in enumerate(self.pts_linears):
             h = self.pts_linears[i](h)
             h = F.relu(h)
             if i in self.skips:
                 h = torch.cat([input_pts, h], -1)
+
+        # print('h.shape')
+        # print(h.shape)
 
         if self.use_viewdirs:
             alpha = self.alpha_linear(h)
@@ -116,36 +141,449 @@ class NeRF(nn.Module):
         else:
             outputs = self.output_linear(h)
 
+        # print('NeRF output shape')
+        # print(outputs.shape)    
         return outputs    
 
-    def load_weights_from_keras(self, weights):
-        assert self.use_viewdirs, "Not implemented if use_viewdirs=False"
+    # def load_weights_from_keras(self, weights):
+    #     assert self.use_viewdirs, "Not implemented if use_viewdirs=False"
         
-        # Load pts_linears
-        for i in range(self.D):
-            idx_pts_linears = 2 * i
-            self.pts_linears[i].weight.data = torch.from_numpy(np.transpose(weights[idx_pts_linears]))    
-            self.pts_linears[i].bias.data = torch.from_numpy(np.transpose(weights[idx_pts_linears+1]))
+    #     # Load pts_linears
+    #     for i in range(self.D):
+    #         idx_pts_linears = 2 * i
+    #         self.pts_linears[i].weight.data = torch.from_numpy(np.transpose(weights[idx_pts_linears]))    
+    #         self.pts_linears[i].bias.data = torch.from_numpy(np.transpose(weights[idx_pts_linears+1]))
         
-        # Load feature_linear
-        idx_feature_linear = 2 * self.D
-        self.feature_linear.weight.data = torch.from_numpy(np.transpose(weights[idx_feature_linear]))
-        self.feature_linear.bias.data = torch.from_numpy(np.transpose(weights[idx_feature_linear+1]))
+    #     # Load feature_linear
+    #     idx_feature_linear = 2 * self.D
+    #     self.feature_linear.weight.data = torch.from_numpy(np.transpose(weights[idx_feature_linear]))
+    #     self.feature_linear.bias.data = torch.from_numpy(np.transpose(weights[idx_feature_linear+1]))
 
-        # Load views_linears
-        idx_views_linears = 2 * self.D + 2
-        self.views_linears[0].weight.data = torch.from_numpy(np.transpose(weights[idx_views_linears]))
-        self.views_linears[0].bias.data = torch.from_numpy(np.transpose(weights[idx_views_linears+1]))
+    #     # Load views_linears
+    #     idx_views_linears = 2 * self.D + 2
+    #     self.views_linears[0].weight.data = torch.from_numpy(np.transpose(weights[idx_views_linears]))
+    #     self.views_linears[0].bias.data = torch.from_numpy(np.transpose(weights[idx_views_linears+1]))
 
-        # Load rgb_linear
-        idx_rbg_linear = 2 * self.D + 4
-        self.rgb_linear.weight.data = torch.from_numpy(np.transpose(weights[idx_rbg_linear]))
-        self.rgb_linear.bias.data = torch.from_numpy(np.transpose(weights[idx_rbg_linear+1]))
+    #     # Load rgb_linear
+    #     idx_rbg_linear = 2 * self.D + 4
+    #     self.rgb_linear.weight.data = torch.from_numpy(np.transpose(weights[idx_rbg_linear]))
+    #     self.rgb_linear.bias.data = torch.from_numpy(np.transpose(weights[idx_rbg_linear+1]))
 
-        # Load alpha_linear
-        idx_alpha_linear = 2 * self.D + 6
-        self.alpha_linear.weight.data = torch.from_numpy(np.transpose(weights[idx_alpha_linear]))
-        self.alpha_linear.bias.data = torch.from_numpy(np.transpose(weights[idx_alpha_linear+1]))
+    #     # Load alpha_linear
+    #     idx_alpha_linear = 2 * self.D + 6
+    #     self.alpha_linear.weight.data = torch.from_numpy(np.transpose(weights[idx_alpha_linear]))
+    #     self.alpha_linear.bias.data = torch.from_numpy(np.transpose(weights[idx_alpha_linear+1]))
+
+
+class MyAttention(nn.Module):
+    def __init__(self, dim, heads = 1, dim_head = 64, dropout = 0.):
+        super().__init__()
+        inner_dim = dim_head *  heads
+        project_out = not (heads == 1 and dim_head == dim)
+
+        self.heads = heads
+        self.scale = dim_head ** -0.5
+
+        self.attend = nn.Softmax(dim = -1)
+        self.dropout = nn.Dropout(dropout)
+
+        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
+
+        self.to_out = nn.Sequential(
+            nn.Linear(inner_dim, dim),
+            nn.Dropout(dropout)
+        ) if project_out else nn.Identity()
+
+    def forward(self, x):
+        qkv = self.to_qkv(x).chunk(3, dim = -1)
+        q, k, v = map(lambda t: rearrange(t, 'b (h d) -> b h d', h = self.heads), qkv)
+
+        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
+
+        attn = self.attend(dots)
+        attn = self.dropout(attn)
+
+        out = torch.matmul(attn, v)
+        out = rearrange(out, 'b h d -> b (h d)')
+        return self.to_out(out)        
+
+
+class PreNorm(nn.Module):
+    def __init__(self, dim, fn):
+        super().__init__()
+        self.norm = nn.LayerNorm(dim)
+        self.fn = fn
+    def forward(self, x, **kwargs):
+        return self.fn(self.norm(x), **kwargs)
+
+class FeedForward(nn.Module):
+    def __init__(self, dim, hidden_dim, dropout = 0.):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, dim),
+            nn.Dropout(dropout)
+        )
+    def forward(self, x):
+        return self.net(x)
+
+class MyTransformer(nn.Module):
+    def __init__(self, in_dim, heads = 8, dim_head = 32, mlp_dim = 32, dropout = 0.):
+        super().__init__()
+        self.attn = PreNorm(in_dim, MyAttention(in_dim, heads = heads, dim_head = dim_head, dropout = dropout))
+        self.ff = PreNorm(in_dim, FeedForward(in_dim, mlp_dim, dropout = dropout))
+    def forward(self, x):
+        
+        x = self.attn(x) + x
+        x = self.ff(x) + x
+        return x
+
+
+class MyViT(nn.Module):
+    def __init__(self, D=8, W=32, input_ch=3, input_ch_views=3, output_ch=4, skips=[4], use_viewdirs=False):
+
+        super(MyViT, self).__init__()
+
+        assert D % 2 == 0
+
+
+        self.D = D
+        self.W = W
+        self.skips = skips
+        self.input_ch = input_ch
+        self.input_ch_views = input_ch_views
+        self.use_viewdirs = use_viewdirs
+
+
+        self.pre_linear = nn.Linear(input_ch, W)
+
+        self.pts_transformers = nn.ModuleList(
+            [MyTransformer(W) if i not in self.skips else nn.Linear(W + input_ch, W) for i in range(D - 1)]
+            # [nn.Linear(W, W) if i not in self.skips else nn.Linear(W + input_ch, W) for i in range(D-1)]
+        )
+
+        self.views_linears = nn.ModuleList([nn.Linear(input_ch_views + W, W//2)])
+
+        if use_viewdirs:
+            self.feature_transformer = MyTransformer(W)
+            # self.feature_transformer = nn.Linear(W, W)
+            self.alpha_linear = nn.Linear(W, 1)
+            self.rgb_linear = nn.Linear(W//2, 3)
+        else:
+            self.output_linear = nn.Linear(W, output_ch)
+
+        return 
+    
+    def forward(self, x):
+
+        # print('MyViT input shape')
+        # print(x.shape)
+
+        input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
+        h = input_pts
+
+        h = self.pre_linear(h)
+
+        for i, l in enumerate(self.pts_transformers):
+
+            if i in self.skips:
+                h = torch.cat([input_pts, h], -1)
+
+            h = self.pts_transformers[i](h)
+           
+        if self.use_viewdirs:
+            alpha = self.alpha_linear(h)
+            feature = self.feature_transformer(h)
+            h = torch.cat([feature, input_views], -1)
+        
+            for i, l in enumerate(self.views_linears):
+                h = self.views_linears[i](h)
+                h = F.relu(h)
+
+            rgb = self.rgb_linear(h)
+            outputs = torch.cat([rgb, alpha], -1)
+        else:
+            outputs = self.output_linear(h)
+
+
+        return outputs
+
+
+
+class MyNewViT(nn.Module):
+    def __init__(self, D=8, W=32, input_ch=3, input_ch_views=3, output_ch=4, skips=[4], use_viewdirs=False):
+
+        super(MyNewViT, self).__init__()
+
+        assert D % 2 == 0
+
+
+        self.D = D
+        self.W = W
+        self.skips = skips
+        self.input_ch = input_ch
+        self.input_ch_views = input_ch_views
+        self.use_viewdirs = use_viewdirs
+
+
+        self.pre_linear = nn.Linear(input_ch, W)
+
+        self.pts_transformers = nn.ModuleList(
+            [Transformer(W, W) if i not in self.skips else nn.Linear(W + input_ch, W) for i in range(D - 1)]
+            # [nn.Linear(W, W) if i not in self.skips else nn.Linear(W + input_ch, W) for i in range(D-1)]
+        )
+
+        self.views_linears = nn.ModuleList([nn.Linear(input_ch_views + W, W//2)])
+
+        if use_viewdirs:
+            self.feature_transformer = Transformer(W, W)
+            # self.feature_transformer = nn.Linear(W, W)
+            self.alpha_linear = nn.Linear(W, 1)
+            self.rgb_linear = nn.Linear(W//2, 3)
+        else:
+            self.output_linear = nn.Linear(W, output_ch)
+
+        return 
+    
+    def forward(self, x):
+
+        input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
+        h = input_pts
+
+        h = self.pre_linear(h)
+
+        for i, l in enumerate(self.pts_transformers):
+
+            if i in self.skips:
+                h = torch.cat([input_pts, h], -1)
+
+            h = self.pts_transformers[i](h)
+           
+        if self.use_viewdirs:
+            alpha = self.alpha_linear(h)
+            feature = self.feature_transformer(h)
+            h = torch.cat([feature, input_views], -1)
+        
+            for i, l in enumerate(self.views_linears):
+                h = self.views_linears[i](h)
+                h = F.relu(h)
+
+            rgb = self.rgb_linear(h)
+            outputs = torch.cat([rgb, alpha], -1)
+        else:
+            outputs = self.output_linear(h)
+
+
+        return outputs
+
+# Original ViT  below 
+
+
+def pair(t):
+    return t if isinstance(t, tuple) else (t, t)
+
+class Attention(nn.Module):
+    def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0.):
+        super().__init__()
+        inner_dim = dim_head *  heads
+        project_out = not (heads == 1 and dim_head == dim)
+
+        self.heads = heads
+        self.scale = dim_head ** -0.5
+
+        self.attend = nn.Softmax(dim = -1)
+        self.dropout = nn.Dropout(dropout)
+
+        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
+
+        self.to_out = nn.Sequential(
+            nn.Linear(inner_dim, dim),
+            nn.Dropout(dropout)
+        ) if project_out else nn.Identity()
+
+    def forward(self, x):
+        qkv = self.to_qkv(x).chunk(3, dim = -1)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
+
+        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
+
+        attn = self.attend(dots)
+        attn = self.dropout(attn)
+
+        out = torch.matmul(attn, v)
+        out = rearrange(out, 'b h n d -> b n (h d)')
+        return self.to_out(out)
+
+class Transformer(nn.Module):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0.):
+        super().__init__()
+        self.layers = nn.ModuleList([])
+        for _ in range(depth):
+            self.layers.append(nn.ModuleList([
+                PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
+            ]))
+    def forward(self, x):
+        for attn, ff in self.layers:
+            x = attn(x) + x
+            x = ff(x) + x
+        return x
+
+class ViT(nn.Module):
+
+    '''
+    def __init__(self, D=8, W=256, input_ch=3, input_ch_views=3, output_ch=4, skips=[4], use_viewdirs=False):
+        """ 
+        """
+    '''
+
+
+    def __init__(self, num_rays = 1024,  D=8, W=256, *, image_size = 8, patch_size = 2, num_classes = 64 * 4, dim = 64,  heads = 4,  pool = 'cls', channels = 90, dim_head = 16, dropout = 0., emb_dropout = 0.):
+        super(ViT, self).__init__()
+
+        depth = D
+        mlp_dim = W
+        self.num_rays = num_rays
+
+
+        image_height, image_width = pair(image_size)
+        patch_height, patch_width = pair(patch_size)
+
+        assert image_height % patch_height == 0 and image_width % patch_width == 0, 'Image dimensions must be divisible by the patch size.'
+
+        num_patches = (image_height // patch_height) * (image_width // patch_width)
+        patch_dim = channels * patch_height * patch_width
+        assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
+
+        self.to_patch_embedding = nn.Sequential(
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
+            nn.Linear(patch_dim, dim),
+        )
+
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+        self.dropout = nn.Dropout(emb_dropout)
+
+        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
+
+        self.pool = pool
+        self.to_latent = nn.Identity()
+
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Linear(dim, num_classes),
+            nn.ReLU()
+        )
+
+    def forward(self, img):
+
+        # print('class ViT input shape')
+        # print(img.shape)
+
+        x = rearrange(img, '(b n) c -> b c n', b = self.num_rays)
+        h = int(sqrt(x.shape[-1]))
+        x = rearrange(x, 'b c (h w) -> b c h w', h = h)
+
+        x = self.to_patch_embedding(x)
+
+
+        b, n, _ = x.shape
+
+        cls_tokens = repeat(self.cls_token, '1 1 d -> b 1 d', b = b)
+        x = torch.cat((cls_tokens, x), dim=1)
+        x += self.pos_embedding[:, :(n + 1)]
+        x = self.dropout(x)
+
+        x = self.transformer(x)
+        x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
+
+        x = self.to_latent(x)
+        
+        x = self.mlp_head(x)
+
+
+        output = rearrange(x, 'b (n c) -> (b n) c', c = 4)
+
+        # print('class ViT output shape')
+        # print(output.shape)
+
+        return output
+
+
+class LT(nn.Module):
+
+    '''
+    def __init__(self, D=8, W=256, input_ch=3, input_ch_views=3, output_ch=4, skips=[4], use_viewdirs=False):
+        """ 
+        """
+    '''
+
+
+    def __init__(self, num_rays = 1024,  D=8, W=256, *, num_classes = 64 * 4, num_pts =64, feature_dim = 90, dim = 64,  heads = 4,  pool = 'cls', channels = 90, dim_head = 16, dropout = 0., emb_dropout = 0.):
+        super(LT, self).__init__()
+
+        depth = D
+        mlp_dim = W
+        self.num_rays = num_rays
+
+
+        
+
+        assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
+
+        self.to_patch_embedding = nn.Sequential(
+            nn.Linear(feature_dim , dim),
+        )
+
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_pts + 1, dim))
+        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+        self.dropout = nn.Dropout(emb_dropout)
+
+        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
+
+        self.pool = pool
+        self.to_latent = nn.Identity()
+
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Linear(dim, num_classes),
+            nn.ReLU()
+        )
+
+    def forward(self, img):
+
+        # print('class ViT input shape')
+        # print(img.shape)
+
+        x = rearrange(img, '(b n) c -> b n c', b = self.num_rays)
+
+        
+        x = self.to_patch_embedding(x)
+
+
+        b, n, _ = x.shape
+
+        cls_tokens = repeat(self.cls_token, '1 1 d -> b 1 d', b = b)
+        x = torch.cat((cls_tokens, x), dim=1)
+        x += self.pos_embedding[:, :(n + 1)]
+        x = self.dropout(x)
+
+        x = self.transformer(x)
+        x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
+
+        x = self.to_latent(x)
+        
+        x = self.mlp_head(x)
+
+
+        output = rearrange(x, 'b (n c) -> (b n) c', c = 4)
+
+        # print('class ViT output shape')
+        # print(output.shape)
+
+        return output
 
 
 

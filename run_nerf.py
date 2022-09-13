@@ -19,6 +19,7 @@ from load_blender import load_blender_data
 from load_LINEMOD import load_LINEMOD_data
 
 
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.random.seed(0)
 DEBUG = False
@@ -45,7 +46,7 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
         input_dirs_flat = torch.reshape(input_dirs, [-1, input_dirs.shape[-1]])
         embedded_dirs = embeddirs_fn(input_dirs_flat)
         embedded = torch.cat([embedded, embedded_dirs], -1)
-
+    
     outputs_flat = batchify(fn, netchunk)(embedded)
     outputs = torch.reshape(outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]])
     return outputs
@@ -189,13 +190,31 @@ def create_nerf(args):
     model = NeRF(D=args.netdepth, W=args.netwidth,
                  input_ch=input_ch, output_ch=output_ch, skips=skips,
                  input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
+
+    # model = MyViT(D=args.netdepth, W=args.netwidth,
+    #              input_ch=input_ch, output_ch=output_ch, skips=skips,
+    #              input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
+    
+    # model = ViT(D=args.netdepth, W=args.netwidth).to(device)
+
+    # model = LT(D=args.netdepth, W=args.netwidth).to(device)
+    
     grad_vars = list(model.parameters())
+
 
     model_fine = None
     if args.N_importance > 0:
         model_fine = NeRF(D=args.netdepth_fine, W=args.netwidth_fine,
                           input_ch=input_ch, output_ch=output_ch, skips=skips,
                           input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
+        # model_fine = MyViT(D=args.netdepth_fine, W=args.netwidth_fine,
+        #                   input_ch=input_ch, output_ch=output_ch, skips=skips,
+        #                   input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
+        
+        # model_fine = ViT(D=args.netdepth, W=args.netwidth).to(device)
+
+        # model_fine = LT(D=args.netdepth, W=args.netwidth).to(device)
+   
         grad_vars += list(model_fine.parameters())
 
     network_query_fn = lambda inputs, viewdirs, network_fn : run_network(inputs, viewdirs, network_fn,
@@ -205,6 +224,8 @@ def create_nerf(args):
 
     # Create optimizer
     optimizer = torch.optim.Adam(params=grad_vars, lr=args.lrate, betas=(0.9, 0.999))
+
+    # Optimizer change to AdamW
 
     start = 0
     basedir = args.basedir
@@ -399,6 +420,16 @@ def render_rays(ray_batch,
         run_fn = network_fn if network_fine is None else network_fine
 #         raw = run_network(pts, fn=run_fn)
         raw = network_query_fn(pts, viewdirs, run_fn)
+
+        # print('Debug')
+        # print('pts shape')
+        # print(pts.shape)
+        # print('viewdirs shape')
+        # print(viewdirs.shape)
+        # print('raw shape')
+        # print(raw.shape)
+
+        # exit(1)
 
         rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
 
@@ -637,6 +668,7 @@ def train():
             file.write(open(args.config, 'r').read())
 
     # Create nerf model
+    # model is actually saved in render_kwargs_train
     render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer = create_nerf(args)
     global_step = start
 
@@ -648,6 +680,7 @@ def train():
     render_kwargs_test.update(bds_dict)
 
     # Move testing data to GPU
+    # render_poses.shape = (120, 3, 5)
     render_poses = torch.Tensor(render_poses).to(device)
 
     # Short circuit if only rendering out from trained model
@@ -713,17 +746,33 @@ def train():
 
         # Sample random ray batch
         if use_batching:
-            # Random over all images
-            batch = rays_rgb[i_batch:i_batch+N_rand] # [B, 2+1, 3*?]
-            batch = torch.transpose(batch, 0, 1)
-            batch_rays, target_s = batch[:2], batch[2]
+            
+            '''
+            Original Code will cause last batch in an epoch to have different of data
+            '''
 
-            i_batch += N_rand
-            if i_batch >= rays_rgb.shape[0]:
+            # # Random over all images
+            # batch = rays_rgb[i_batch:i_batch+N_rand] # [B, 2+1, 3*?]
+            # batch = torch.transpose(batch, 0, 1)
+            # batch_rays, target_s = batch[:2], batch[2]
+
+            # i_batch += N_rand
+            # if i_batch >= rays_rgb.shape[0]:
+            #     print("Shuffle data after an epoch!")
+            #     rand_idx = torch.randperm(rays_rgb.shape[0])
+            #     rays_rgb = rays_rgb[rand_idx]
+            #     i_batch = 0
+
+            if i_batch + N_rand >= rays_rgb.shape[0]:
                 print("Shuffle data after an epoch!")
                 rand_idx = torch.randperm(rays_rgb.shape[0])
                 rays_rgb = rays_rgb[rand_idx]
                 i_batch = 0
+            
+            batch = rays_rgb[i_batch:i_batch+N_rand] # [B, 2+1, 3*?]
+            batch = torch.transpose(batch, 0, 1)
+            batch_rays, target_s = batch[:2], batch[2]
+            i_batch += N_rand
 
         else:
             # Random from one image
@@ -755,11 +804,18 @@ def train():
                 rays_d = rays_d[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
                 batch_rays = torch.stack([rays_o, rays_d], 0)
                 target_s = target[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
-
+                
+        # print("batch_rays shape")
+        # print(batch_rays.shape)
         #####  Core optimization loop  #####
         rgb, disp, acc, extras = render(H, W, K, chunk=args.chunk, rays=batch_rays,
                                                 verbose=i < 10, retraw=True,
                                                 **render_kwargs_train)
+        
+        # print('rgb shape')
+        # print(rgb.shape)
+
+        # exit(1)
 
         optimizer.zero_grad()
         img_loss = img2mse(rgb, target_s)

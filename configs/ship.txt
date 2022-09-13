@@ -1,4 +1,4 @@
-expname = blender_paper_ship
+expname = blender_ship
 basedir = ./logs
 datadir = ./data/nerf_synthetic/ship
 dataset_type = blender
