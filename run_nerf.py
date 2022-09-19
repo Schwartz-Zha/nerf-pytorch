@@ -880,6 +880,11 @@ def train():
 
         # Rest is logging
         if i%args.i_weights==0:
+
+            # DEBUG  Info
+            print('Model weights is being saved into disk')
+
+
             path = os.path.join(basedir, expname, '{:06d}.tar'.format(i))
             torch.save({
                 'global_step': global_step,
@@ -890,6 +895,11 @@ def train():
             print('Saved checkpoints at', path)
 
         if i%args.i_video==0 and i > 0:
+
+            # DEBUG INFO
+            print('Now save a video of the testing result')
+
+
             # Turn on testing mode
             with torch.no_grad():
                 rgbs, disps = render_path(render_poses, hwf, K, args.chunk, render_kwargs_test)

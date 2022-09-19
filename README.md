@@ -14,6 +14,8 @@ This project is a faithful PyTorch implementation of [NeRF](http://www.matthewta
 git clone https://github.com/yenchenlin/nerf-pytorch.git
 cd nerf-pytorch
 pip install -r requirements.txt
+# CUDA 11.1
+pip install torch==1.10.1+cu111 torchvision==0.11.2+cu111 torchaudio==0.10.1 -f https://download.pytorch.org/whl/torch_stable.html
 ```
 
 <details>
