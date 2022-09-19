@@ -8,6 +8,7 @@ import numpy as np
 
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
+import time
 
 
 # Misc
@@ -482,9 +483,6 @@ class ViT(nn.Module):
         # print('class ViT input shape')
         # print(img.shape)
 
-        x = rearrange(img, '(b n) c -> b c n', b = self.num_rays)
-        h = int(sqrt(x.shape[-1]))
-        x = rearrange(x, 'b c (h w) -> b c h w', h = h)
 
         x = self.to_patch_embedding(x)
 
@@ -504,24 +502,15 @@ class ViT(nn.Module):
         x = self.mlp_head(x)
 
 
-        output = rearrange(x, 'b (n c) -> (b n) c', c = 4)
-
-        # print('class ViT output shape')
-        # print(output.shape)
-
         return output
 
 
 class LT(nn.Module):
 
-    '''
-    def __init__(self, D=8, W=256, input_ch=3, input_ch_views=3, output_ch=4, skips=[4], use_viewdirs=False):
-        """ 
-        """
-    '''
-
-
-    def __init__(self, num_rays = 1024,  D=8, W=256, *, num_classes = 64 * 4, num_pts =64, feature_dim = 90, dim = 64,  heads = 4,  pool = 'cls', channels = 90, dim_head = 16, dropout = 0., emb_dropout = 0.):
+    def __init__(self, num_rays = 1024,  D=8, W=256, *, num_classes =  4, num_pts =64, 
+        feature_dim = 90, dim = 64,  heads = 4,  pool = 'cls', channels = 90, dim_head = 16,
+        dropout = 0., emb_dropout = 0.):
+        
         super(LT, self).__init__()
 
         depth = D
@@ -536,6 +525,8 @@ class LT(nn.Module):
         self.to_patch_embedding = nn.Sequential(
             nn.Linear(feature_dim , dim),
         )
+
+
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_pts + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
@@ -554,11 +545,6 @@ class LT(nn.Module):
 
     def forward(self, img):
 
-        # print('class ViT input shape')
-        # print(img.shape)
-
-        x = rearrange(img, '(b n) c -> b n c', b = self.num_rays)
-
         
         x = self.to_patch_embedding(x)
 
@@ -580,10 +566,40 @@ class LT(nn.Module):
 
         output = rearrange(x, 'b (n c) -> (b n) c', c = 4)
 
-        # print('class ViT output shape')
-        # print(output.shape)
+
+
 
         return output
+
+
+class NeRFFormer(nn.Module):
+
+    def __init__(self, depth = 8, input_dim = 90,  output_dim= 4, internal_dim = 64,
+                heads=8, dim_head = 32, mlp_dim = 128):
+
+        super(NeRFFormer, self).__init__()
+
+        self.preprocessor = nn.Sequential(
+            nn.Linear(input_dim, internal_dim),
+            nn.ReLU()
+        )
+        self.transformer = Transformer(internal_dim, depth, heads, dim_head, mlp_dim, dropout = 0.)
+
+        self.postprocessor = nn.Sequential(
+            nn.Linear(internal_dim, output_dim),
+            nn.ReLU()
+        )
+        return
+
+    def forward(self, x):
+
+        x = self.preprocessor(x)
+        x = self.transformer(x)
+        x = self.postprocessor(x)
+
+        return x
+
+
 
 
 

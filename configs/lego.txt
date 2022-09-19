@@ -1,9 +1,9 @@
-expname = blender_paper_lego
+expname = blender_lego
 basedir = ./logs
 datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
 
-no_batching = True
+no_batching = False
 
 use_viewdirs = True
 white_bkgd = True

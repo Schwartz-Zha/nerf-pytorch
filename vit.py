@@ -145,8 +145,9 @@ class ViT(nn.Module):
 
     def forward(self, img):
 
+        print('in forward() of ViT')
 
-
+        print(img.shape)
 
         x = self.to_patch_embedding(img)
 
@@ -168,18 +169,32 @@ class ViT(nn.Module):
 
         x += self.pos_embedding[:, :(n + 1)]
 
-        print('Pus pos embed')
+        print('Plus pos embed')
         print(x.shape)
 
 
         x = self.dropout(x)
 
+        print('after dropout')
+        print(x.shape)
+
         x = self.transformer(x)
+
+        print('after transformer')
+        print(x.shape)
+
+
         x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
 
         x = self.to_latent(x)
+
+        print('after to_latent ')
+        print(x.shape)
         
         x = self.mlp_head(x)
+
+        print('after mlp')
+        print(x.shape)
 
         return x
 

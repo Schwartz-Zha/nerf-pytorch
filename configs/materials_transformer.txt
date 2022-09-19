@@ -3,6 +3,8 @@ basedir = ./logs
 datadir = ./data/nerf_synthetic/materials
 dataset_type = blender
 
+model_type = NeRFFormer
+
 no_batching = False
 
 use_viewdirs = True

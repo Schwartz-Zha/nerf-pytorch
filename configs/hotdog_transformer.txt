@@ -1,7 +1,9 @@
-expname = blender_materials
+expname = blender_hotdog
 basedir = ./logs
-datadir = ./data/nerf_synthetic/materials
+datadir = ./data/nerf_synthetic/hotdog/
 dataset_type = blender
+
+model_type = NeRFFormer
 
 no_batching = False
 
@@ -17,4 +19,3 @@ precrop_iters = 500
 precrop_frac = 0.5
 
 half_res = True
-

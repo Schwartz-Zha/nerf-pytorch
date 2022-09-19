@@ -1,9 +1,9 @@
-expname = blender_paper_drums
+expname = blender_drums
 basedir = ./logs
 datadir = ./data/nerf_synthetic/drums
 dataset_type = blender
 
-no_batching = True
+no_batching = False
 
 use_viewdirs = True
 white_bkgd = True

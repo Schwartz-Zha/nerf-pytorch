@@ -1,3 +1,4 @@
+from email.policy import default
 import os, sys
 import numpy as np
 import imageio
@@ -46,10 +47,28 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
         input_dirs_flat = torch.reshape(input_dirs, [-1, input_dirs.shape[-1]])
         embedded_dirs = embeddirs_fn(input_dirs_flat)
         embedded = torch.cat([embedded, embedded_dirs], -1)
-    
-    outputs_flat = batchify(fn, netchunk)(embedded)
+
+    outputs_flat = batchify(fn, netchunk)(embedded)    
     outputs = torch.reshape(outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]])
     return outputs
+
+
+def run_transformer_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk = 1024):
+    """
+    Prepares inputs and applies network 'fn'.
+    Unlike the original NeRF implementation, we do not flatten here\
+    """
+    
+    embedded = embed_fn(inputs)
+    if viewdirs is not None:
+        input_dirs = viewdirs[:,None].expand(inputs.shape)
+        embedded_dirs = embeddirs_fn(input_dirs)
+        embedded = torch.cat([embedded, embedded_dirs], -1)
+
+    output = batchify(fn, netchunk)(embedded)    
+
+    return output
+
 
 
 def batchify_rays(rays_flat, chunk=1024*32, **kwargs):
@@ -187,40 +206,51 @@ def create_nerf(args):
         embeddirs_fn, input_ch_views = get_embedder(args.multires_views, args.i_embed)
     output_ch = 5 if args.N_importance > 0 else 4
     skips = [4]
-    model = NeRF(D=args.netdepth, W=args.netwidth,
-                 input_ch=input_ch, output_ch=output_ch, skips=skips,
-                 input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
 
-    # model = MyViT(D=args.netdepth, W=args.netwidth,
-    #              input_ch=input_ch, output_ch=output_ch, skips=skips,
-    #              input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
-    
-    # model = ViT(D=args.netdepth, W=args.netwidth).to(device)
+    if args.model_type == 'NeRF':
+        model = NeRF(D=args.netdepth, W=args.netwidth,
+                     input_ch=input_ch, output_ch=output_ch, skips=skips,
+                     input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
 
-    # model = LT(D=args.netdepth, W=args.netwidth).to(device)
-    
+    elif args.model_type == 'NeRFFormer':
+        model = NeRFFormer(depth=args.transformer_depth, input_dim=input_ch + input_ch_views, 
+                        output_dim=output_ch, internal_dim=args.internal_dim,
+                        heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim).to(device)
+    else:
+        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer]')
     grad_vars = list(model.parameters())
 
 
     model_fine = None
     if args.N_importance > 0:
-        model_fine = NeRF(D=args.netdepth_fine, W=args.netwidth_fine,
-                          input_ch=input_ch, output_ch=output_ch, skips=skips,
-                          input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
-        # model_fine = MyViT(D=args.netdepth_fine, W=args.netwidth_fine,
-        #                   input_ch=input_ch, output_ch=output_ch, skips=skips,
-        #                   input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
-        
-        # model_fine = ViT(D=args.netdepth, W=args.netwidth).to(device)
+        if args.model_type == 'NeRF':
+            model_fine = NeRF(D=args.netdepth, W=args.netwidth,
+                        input_ch=input_ch, output_ch=output_ch, skips=skips,
+                        input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
 
-        # model_fine = LT(D=args.netdepth, W=args.netwidth).to(device)
-   
+        elif args.model_type == 'NeRFFormer':
+            model_fine = NeRFFormer(depth=args.transformer_depth, input_dim=input_ch + input_ch_views, 
+                            output_dim=output_ch, internal_dim=args.internal_dim,
+                            heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim).to(device)
+        
+        else:
+            sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer]')
+        
         grad_vars += list(model_fine.parameters())
 
-    network_query_fn = lambda inputs, viewdirs, network_fn : run_network(inputs, viewdirs, network_fn,
+    
+    if args.model_type == 'NeRF':
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_network(inputs, viewdirs, network_fn,
                                                                 embed_fn=embed_fn,
                                                                 embeddirs_fn=embeddirs_fn,
                                                                 netchunk=args.netchunk)
+    elif args.model_type == 'NeRFFormer':                                                            
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
+                                                                    embed_fn=embed_fn,
+                                                                    embeddirs_fn=embeddirs_fn,
+                                                                    netchunk=args.netchunk)
+    else:
+        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer]')
 
     # Create optimizer
     optimizer = torch.optim.Adam(params=grad_vars, lr=args.lrate, betas=(0.9, 0.999))
@@ -420,17 +450,6 @@ def render_rays(ray_batch,
         run_fn = network_fn if network_fine is None else network_fine
 #         raw = run_network(pts, fn=run_fn)
         raw = network_query_fn(pts, viewdirs, run_fn)
-
-        # print('Debug')
-        # print('pts shape')
-        # print(pts.shape)
-        # print('viewdirs shape')
-        # print(viewdirs.shape)
-        # print('raw shape')
-        # print(raw.shape)
-
-        # exit(1)
-
         rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
 
     ret = {'rgb_map' : rgb_map, 'disp_map' : disp_map, 'acc_map' : acc_map}
@@ -462,6 +481,10 @@ def config_parser():
     parser.add_argument("--datadir", type=str, default='./data/llff/fern', 
                         help='input data directory')
 
+    # training option to select model type
+    parser.add_argument('--model_type', type=str, default='NeRF',
+                        help='model type for implicit density leaning')
+
     # training options
     parser.add_argument("--netdepth", type=int, default=8, 
                         help='layers in network')
@@ -487,6 +510,19 @@ def config_parser():
                         help='do not reload weights from saved ckpt')
     parser.add_argument("--ft_path", type=str, default=None, 
                         help='specific weights npy file to reload for coarse network')
+    
+    # training options for transformer
+    parser.add_argument('--transformer_depth', type=int, default=3, 
+                        help='number of tranformer blocks')
+    parser.add_argument('--internal_dim', type=int, default=64,
+                        help='internal dimension in transformer')
+    parser.add_argument('--heads', type=int, default=8, 
+                        help='number of heads in transformer')
+    parser.add_argument('--dim_head', type=int, default=32, 
+                        help='dimension on each attention head')
+    parser.add_argument('--mlp_dim', type=int, default=128, 
+                        help='dimension size for mlp in the transformer')
+    
 
     # rendering options
     parser.add_argument("--N_samples", type=int, default=64, 
@@ -804,9 +840,7 @@ def train():
                 rays_d = rays_d[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
                 batch_rays = torch.stack([rays_o, rays_d], 0)
                 target_s = target[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
-                
-        # print("batch_rays shape")
-        # print(batch_rays.shape)
+
         #####  Core optimization loop  #####
         rgb, disp, acc, extras = render(H, W, K, chunk=args.chunk, rays=batch_rays,
                                                 verbose=i < 10, retraw=True,
