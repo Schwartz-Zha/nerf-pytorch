@@ -5,7 +5,7 @@ dataset_type = blender
 
 model_type = NeRFFormer
 
-transformer_depth = 2
+transformer_depth = 4
 
 no_batching = False
 
