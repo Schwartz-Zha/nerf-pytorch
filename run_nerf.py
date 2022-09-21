@@ -490,6 +490,10 @@ def config_parser():
     parser.add_argument('--model_type', type=str, default='NeRF',
                         help='model type for implicit density leaning')
 
+    # Training options for sub-batching and gradient aggregation
+    parser.add_argument('--aggre_num', type=int, default=1, 
+                        help='number of aggregated iteration')
+
     # training options
     parser.add_argument("--netdepth", type=int, default=8, 
                         help='layers in network')
@@ -746,7 +750,7 @@ def train():
             return
 
     # Prepare raybatch tensor if batching random rays
-    N_rand = args.N_rand
+    N_rand = args.N_rand // args.aggre_num
     use_batching = not args.no_batching
     if use_batching:
         # For random ray batching
@@ -856,7 +860,8 @@ def train():
 
         # exit(1)
 
-        optimizer.zero_grad()
+
+        # optimizer.zero_grad()
         img_loss = img2mse(rgb, target_s)
         trans = extras['raw'][...,-1]
         loss = img_loss
@@ -868,18 +873,23 @@ def train():
             psnr0 = mse2psnr(img_loss0)
 
         loss.backward()
-        optimizer.step()
+        # optimizer.step()
 
-        # NOTE: IMPORTANT!
-        ###   update learning rate   ###
-        decay_rate = 0.1
-        decay_steps = args.lrate_decay * 1000
-        new_lrate = args.lrate * (decay_rate ** (global_step / decay_steps))
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = new_lrate
-        ################################
+        if i % args.aggre_num == 0:
+            optimizer.step()
+            optimizer.zero_grad()
+            # NOTE: IMPORTANT!
+            ###   update learning rate   ###
+            decay_rate = 0.1
+            decay_steps = args.lrate_decay * 1000
+            new_lrate = args.lrate * (decay_rate ** (global_step / decay_steps))
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = new_lrate
+            ################################
 
-        dt = time.time()-time0
+        
+
+        # dt = time.time()-time0
         # print(f"Step: {global_step}, Loss: {loss}, Time: {dt}")
         #####           end            #####
 
