@@ -1,0 +1,25 @@
+expname = blender_ficus_transformer_gradagg_deeper_16
+basedir = ./logs
+datadir = ./data/nerf_synthetic/ficus
+dataset_type = blender
+
+model_type = NeRFFormer
+
+aggre_num = 4
+
+transformer_depth = 16
+
+no_batching = True
+
+use_viewdirs = True
+white_bkgd = True
+lrate_decay = 500
+
+N_samples = 64
+N_importance = 128
+N_rand = 1024
+
+precrop_iters = 500
+precrop_frac = 0.5
+
+half_res = True
