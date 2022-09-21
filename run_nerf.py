@@ -220,6 +220,11 @@ def create_nerf(args):
         sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer]')
     grad_vars = list(model.parameters())
 
+    # Inspect model parameter size
+    print('Printout model parameter number')
+    n_parameter = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(n_parameter)
+
 
     model_fine = None
     if args.N_importance > 0:
@@ -500,7 +505,7 @@ def config_parser():
                         help='learning rate')
     parser.add_argument("--lrate_decay", type=int, default=250, 
                         help='exponential learning rate decay (in 1000 steps)')
-    parser.add_argument("--chunk", type=int, default=1024, 
+    parser.add_argument("--chunk", type=int, default=1024*32, 
                         help='number of rays processed in parallel, decrease if running out of memory')
     parser.add_argument("--netchunk", type=int, default=1024*64, 
                         help='number of pts sent through network in parallel, decrease if running out of memory')
@@ -881,10 +886,6 @@ def train():
         # Rest is logging
         if i%args.i_weights==0:
 
-            # DEBUG  Info
-            print('Model weights is being saved into disk')
-
-
             path = os.path.join(basedir, expname, '{:06d}.tar'.format(i))
             torch.save({
                 'global_step': global_step,
@@ -895,10 +896,6 @@ def train():
             print('Saved checkpoints at', path)
 
         if i%args.i_video==0 and i > 0:
-
-            # DEBUG INFO
-            print('Now save a video of the testing result')
-
 
             # Turn on testing mode
             with torch.no_grad():
