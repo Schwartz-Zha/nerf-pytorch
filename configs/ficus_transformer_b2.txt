@@ -1,11 +1,11 @@
-expname = blender_ficus_transformer
+expname = blender_ficus_transformer_b2
 basedir = ./logs
 datadir = ./data/nerf_synthetic/ficus
 dataset_type = blender
 
 model_type = NeRFFormer
 
-transformer_depth = 4
+transformer_depth = 2
 
 no_batching = True
 
