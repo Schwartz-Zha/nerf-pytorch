@@ -1,4 +1,4 @@
-expname = blender_ficus_transformer
+expname = blender_ficus_transformer_wider
 basedir = ./logs
 datadir = ./data/nerf_synthetic/ficus
 dataset_type = blender
