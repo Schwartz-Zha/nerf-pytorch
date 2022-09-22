@@ -9,7 +9,7 @@ aggre_num = 4
 
 transformer_depth = 4
 
-no_batching = True
+no_batching = False
 
 use_viewdirs = True
 white_bkgd = True
