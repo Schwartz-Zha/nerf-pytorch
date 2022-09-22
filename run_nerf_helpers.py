@@ -699,3 +699,4 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
 # Synthetic Data
 # Internal Dim Upto 256
 # Test on training data
+# 1D, 2D Convolution, small network
