@@ -9,6 +9,10 @@ transformer_depth = 4
 
 no_batching = False
 
+i_weights = 200
+i_video = 200
+
+
 use_viewdirs = True
 white_bkgd = True
 lrate_decay = 500
