@@ -171,6 +171,7 @@ class ViT(nn.Module):
 
         print('Plus pos embed')
         print(x.shape)
+        print(self.pos_embedding.shape)
 
 
         x = self.dropout(x)
