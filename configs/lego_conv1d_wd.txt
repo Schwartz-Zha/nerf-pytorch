@@ -1,14 +1,14 @@
-expname = blender_ficus_conv1d_wd
+expname = blender_lego_conv1d_wd
 basedir = ./logs
-datadir = ./data/nerf_synthetic/ficus
+datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
 
+no_batching = False
+
 model_type = Conv1d
+
 netdepth = 16
 netwidth = 512
-
-
-no_batching = False
 
 use_viewdirs = True
 white_bkgd = True
