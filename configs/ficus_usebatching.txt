@@ -1,11 +1,11 @@
-expname = blender_ficus
+expname = blender_ficus_usebatching
 basedir = ./logs
 datadir = ./data/nerf_synthetic/ficus
 dataset_type = blender
 
 model_type = NeRF
 
-no_batching = True
+no_batching = False
 
 use_viewdirs = True
 white_bkgd = True

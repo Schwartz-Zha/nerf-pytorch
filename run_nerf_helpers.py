@@ -176,38 +176,6 @@ class NeRF(nn.Module):
     #     self.alpha_linear.bias.data = torch.from_numpy(np.transpose(weights[idx_alpha_linear+1]))
 
 
-class MyAttention(nn.Module):
-    def __init__(self, dim, heads = 1, dim_head = 64, dropout = 0.):
-        super().__init__()
-        inner_dim = dim_head *  heads
-        project_out = not (heads == 1 and dim_head == dim)
-
-        self.heads = heads
-        self.scale = dim_head ** -0.5
-
-        self.attend = nn.Softmax(dim = -1)
-        self.dropout = nn.Dropout(dropout)
-
-        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
-
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, dim),
-            nn.Dropout(dropout)
-        ) if project_out else nn.Identity()
-
-    def forward(self, x):
-        qkv = self.to_qkv(x).chunk(3, dim = -1)
-        q, k, v = map(lambda t: rearrange(t, 'b (h d) -> b h d', h = self.heads), qkv)
-
-        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
-
-        attn = self.attend(dots)
-        attn = self.dropout(attn)
-
-        out = torch.matmul(attn, v)
-        out = rearrange(out, 'b h d -> b (h d)')
-        return self.to_out(out)        
-
 
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
@@ -229,17 +197,6 @@ class FeedForward(nn.Module):
         )
     def forward(self, x):
         return self.net(x)
-
-class MyTransformer(nn.Module):
-    def __init__(self, in_dim, heads = 8, dim_head = 32, mlp_dim = 32, dropout = 0.):
-        super().__init__()
-        self.attn = PreNorm(in_dim, MyAttention(in_dim, heads = heads, dim_head = dim_head, dropout = dropout))
-        self.ff = PreNorm(in_dim, FeedForward(in_dim, mlp_dim, dropout = dropout))
-    def forward(self, x):
-        
-        x = self.attn(x) + x
-        x = self.ff(x) + x
-        return x
 
 
 
@@ -318,6 +275,144 @@ class NeRFFormer(nn.Module):
         x = self.postprocessor(x)
 
         return x
+
+class NeRFViT(nn.Module):
+    def __init__(self, depth = 8, alpha_depth = 4,  input_dim = 90,  output_dim= 4, internal_dim = 64,
+                heads=8, dim_head = 32, mlp_dim = 128, rays_num=1024, pts_num = 64, rays_seg_num =2, 
+                pts_seg_num = 2):
+        super(NeRFViT).__init__()
+
+        assert rays_num % rays_seg_num == 0 and pts_num % pts_seg_num == 0 and alpha_depth < depth
+        num_patches = (rays_num // rays_seg_num) * (pts_num // pts_seg_num)
+        patch_dim = input_dim * rays_seg_num * pts_seg_num
+
+        self.to_patch_embedding = nn.Sequential(
+            Rearrange('(p1 rays_seg_num) (p2 pts_seg_num) c -> p1 p2 (rays_seg_num pts_seg_num c)',
+                      rays_seg_num = rays_seg_num, pts_seg_num = pts_seg_num),
+            nn.Linear(patch_dim, internal_dim * rays_seg_num, pts_seg_num)
+        )
+
+        self.pos_embedding = nn.Parameter(torch.randn(rays_num // rays_seg_num, pts_num // pts_seg_num, 
+                                            patch_dim))
+                
+        self.transformer1 = Transformer(internal_dim, alpha_depth, heads, dim_head, mlp_dim, dropout=0.)
+        self.transformer2 = Transformer(internal_dim, depth - alpha_depth, heads, dim_head, mlp_dim, dropout = 0.)
+
+        self.alpha_processor = nn.Sequential(
+            nn.Linear(internal_dim, 1),
+            nn.ReLU()
+        )
+
+        self.rgb_processor = nn.Sequential(
+            nn.Linear(internal_dim, output_dim - 1),
+            nn.ReLU()
+        )
+
+        return 
+    def forward(self, x):
+
+        x = self.to_patch_embedding(x)
+        x += self.pos_embedding
+
+        x = self.transformer1(x)
+        alpha = self.alpha_processor(x)
+        
+        x = self.transformer2(x)
+        rgb = self.rgb_processor(x)
+
+        out = torch.cat([alpha, rgb], -1)
+        return out
+
+
+
+
+
+class NeRFFormerSplit(nn.Module):
+    def __init__(self, depth = 8, alpha_depth = 4,  input_dim = 90,  output_dim= 4, internal_dim = 64,
+                heads=8, dim_head = 32, mlp_dim = 128):
+        
+        super(NeRFFormerSplit, self).__init__()
+        assert alpha_depth < depth
+
+        self.preprocessor = nn.Sequential(
+            nn.Linear(input_dim, internal_dim),
+            nn.ReLU()
+        )
+        self.transformer1 = Transformer(internal_dim, alpha_depth, heads, dim_head, mlp_dim, dropout=0.)
+        self.transformer2 = Transformer(internal_dim, depth - alpha_depth, heads, dim_head, mlp_dim, dropout = 0.)
+
+        self.alpha_processor = nn.Sequential(
+            nn.Linear(internal_dim, 1),
+            nn.ReLU()
+        )
+
+        self.rgb_processor = nn.Sequential(
+            nn.Linear(internal_dim, output_dim - 1),
+            nn.ReLU()
+        )
+        return
+
+    def forward(self, x):
+
+        x = self.preprocessor(x)
+        x = self.transformer1(x)
+        
+        alpha = self.alpha_processor(x)
+        
+        x = self.transformer2(x)
+        rgb = self.rgb_processor(x)
+
+        out = torch.cat([alpha, rgb], -1)
+        return out
+
+
+
+
+
+class NeRFConvNet1d(nn.Module):
+    def __init__(self, depth = 8, input_dim = 90,  internal_dim = 256, output_dim= 4, 
+                pts_num = 64, kernel_size_pt = 3, padding_pts = 1, padding_mode='replicate') -> None:
+        super(NeRFConvNet1d, self).__init__()
+        self.pre_processor = nn.Sequential(
+            nn.Conv1d(in_channels=input_dim, out_channels=internal_dim, 
+                        kernel_size=kernel_size_pt, padding=padding_pts, bias=True, 
+                        padding_mode=padding_mode),
+            nn.ReLU()
+        )
+        
+        self.conv_list = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Conv1d(in_channels=internal_dim, out_channels=internal_dim, 
+                        kernel_size=kernel_size_pt, padding=padding_pts, padding_mode=padding_mode),
+                        nn.ReLU()
+                ) for i in range(depth)
+            ]
+        )
+
+        self.post_processor = nn.Sequential(
+            nn.Conv1d(in_channels=internal_dim, out_channels=output_dim, 
+                        kernel_size=kernel_size_pt, padding=padding_pts, padding_mode=padding_mode)
+        )
+
+    def forward(self, x):
+
+        # Move Axis to coporate into Conv1d 
+        x = torch.moveaxis(x, 2, 1)
+
+        x = self.pre_processor(x)
+        for _, module in enumerate(self.conv_list):
+            x = module(x)
+        
+        x = self.post_processor(x)
+
+
+        x = torch.moveaxis(x, 1, 2)
+
+        return x
+
+
+
 
 
 

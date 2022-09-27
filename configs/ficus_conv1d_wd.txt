@@ -1,11 +1,14 @@
-expname = blender_ficus
+expname = blender_ficus_conv1d
 basedir = ./logs
 datadir = ./data/nerf_synthetic/ficus
 dataset_type = blender
 
-model_type = NeRF
+model_type = Conv1d
+netdepth = 24
+netwidth = 512
 
-no_batching = True
+
+no_batching = False
 
 use_viewdirs = True
 white_bkgd = True
