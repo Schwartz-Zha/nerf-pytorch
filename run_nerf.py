@@ -214,12 +214,12 @@ def create_nerf(args):
 
     elif args.model_type == 'NeRFFormer':
         model = NeRFFormer(depth=args.transformer_depth, input_dim=input_ch + input_ch_views, 
-                        output_dim=output_ch, internal_dim=args.internal_dim,
+                        output_dim=4, internal_dim=args.internal_dim,
                         heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim).to(device)
     elif args.model_type == 'Conv1d':
         model = NeRFConvNet1d(
             depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
-            output_dim=output_ch
+            output_dim=4
         )
     else:
         sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer]')
@@ -240,13 +240,13 @@ def create_nerf(args):
 
         elif args.model_type == 'NeRFFormer':
             model_fine = NeRFFormer(depth=args.transformer_depth, input_dim=input_ch + input_ch_views, 
-                            output_dim=output_ch, internal_dim=args.internal_dim,
+                            output_dim=4, internal_dim=args.internal_dim,
                             heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim).to(device)
         
         elif args.model_type == 'Conv1d':
             model_fine = NeRFConvNet1d(
                 depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
-                output_dim=output_ch
+                output_dim=4
             )
         else:
             sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer]')
