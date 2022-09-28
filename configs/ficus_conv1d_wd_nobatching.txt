@@ -1,10 +1,10 @@
-expname = blender_ficus_conv1d_wd
+expname = blender_ficus_conv1d_wd_nobatching
 basedir = ./logs
 datadir = ./data/nerf_synthetic/ficus
 dataset_type = blender
 
 model_type = Conv1d
-netdepth = 16
+netdepth = 12
 netwidth = 512
 
 
