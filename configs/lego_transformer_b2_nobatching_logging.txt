@@ -1,7 +1,11 @@
-expname = blender_lego
+expname = blender_lego_transformer_b2
 basedir = ./logs
 datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
+
+model_type = NeRFFormer
+
+transformer_depth = 2
 
 no_batching = False
 
