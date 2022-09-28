@@ -1,4 +1,4 @@
-expname = blender_lego_transformer_b2
+expname = blender_lego_transformer_b2_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
