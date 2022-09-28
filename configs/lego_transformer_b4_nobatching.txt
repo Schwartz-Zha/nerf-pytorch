@@ -1,13 +1,14 @@
-expname = blender_lego_conv1d_nobatching_debug
+expname = blender_lego_transformer
 basedir = ./logs
 datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
 
+model_type = NeRFFormer
+
+transformer_depth = 4
+
 no_batching = True
 
-model_type = Conv1d
-i_weights = 200
-i_video = 200
 use_viewdirs = True
 white_bkgd = True
 lrate_decay = 500
