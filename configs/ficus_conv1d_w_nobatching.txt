@@ -5,7 +5,7 @@ dataset_type = blender
 
 model_type = Conv1d
 netdepth = 8
-netwidth = 512
+netwidth = 384
 
 
 no_batching = True

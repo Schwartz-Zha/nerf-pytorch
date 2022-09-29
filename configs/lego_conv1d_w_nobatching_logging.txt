@@ -8,7 +8,7 @@ no_batching = True
 model_type = Conv1d
 
 netdepth = 8
-netwidth = 512
+netwidth = 384
 
 use_viewdirs = True
 white_bkgd = True
