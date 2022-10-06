@@ -263,8 +263,7 @@ class NeRFFormer(nn.Module):
         self.transformer = Transformer(internal_dim, depth, heads, dim_head, mlp_dim, dropout = 0.)
 
         self.postprocessor = nn.Sequential(
-            nn.Linear(internal_dim, output_dim),
-            nn.ReLU()
+            nn.Linear(internal_dim, output_dim)
         )
         return
 
@@ -299,13 +298,11 @@ class NeRFViT(nn.Module):
         self.transformer2 = Transformer(internal_dim, depth - alpha_depth, heads, dim_head, mlp_dim, dropout = 0.)
 
         self.alpha_processor = nn.Sequential(
-            nn.Linear(internal_dim, 1),
-            nn.ReLU()
+            nn.Linear(internal_dim, 1)
         )
 
         self.rgb_processor = nn.Sequential(
-            nn.Linear(internal_dim, output_dim - 1),
-            nn.ReLU()
+            nn.Linear(internal_dim, output_dim - 1)
         )
 
         return 
@@ -342,13 +339,11 @@ class NeRFFormerSplit(nn.Module):
         self.transformer2 = Transformer(internal_dim, depth - alpha_depth, heads, dim_head, mlp_dim, dropout = 0.)
 
         self.alpha_processor = nn.Sequential(
-            nn.Linear(internal_dim, 1),
-            nn.ReLU()
+            nn.Linear(internal_dim, 1)
         )
 
         self.rgb_processor = nn.Sequential(
-            nn.Linear(internal_dim, output_dim - 1),
-            nn.ReLU()
+            nn.Linear(internal_dim, output_dim - 1)
         )
         return
 

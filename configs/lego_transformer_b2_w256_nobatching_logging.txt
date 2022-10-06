@@ -1,4 +1,4 @@
-expname = blender_lego_transformer_b2_w128_nobatching_logging
+expname = blender_lego_transformer_b2_w256_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
@@ -6,7 +6,7 @@ dataset_type = blender
 model_type = NeRFFormer
 
 transformer_depth = 2
-internal_dim = 128
+internal_dim = 256
 
 no_batching = False
 
