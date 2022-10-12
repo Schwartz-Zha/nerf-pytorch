@@ -327,8 +327,9 @@ def main():
 
     print('Model is successfully built!')
 
-    input_data = torch.Tensor(15, 64, 90)
+    input_data = torch.Tensor(1024, 64, 90).to('cuda')
     print('input_shape : ', input_data.shape)
+    model = model.to('cuda')
     output_data = model(input_data)
     print('output_shape : ', output_data.shape)
         

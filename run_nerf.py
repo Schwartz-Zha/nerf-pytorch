@@ -797,22 +797,24 @@ def train():
 
     # Prepare raybatch tensor if batching random rays
     N_rand = args.N_rand // args.aggre_num
-    use_batching = not args.no_batching
-    if use_batching:
-        # For random ray batching
-        logging.info('get rays')
-        rays = np.stack([get_rays_np(H, W, K, p) for p in poses[:,:3,:4]], 0) # [N, ro+rd, H, W, 3]
-        logging.info('done, concats')
-        rays_rgb = np.concatenate([rays, images[:,None]], 1) # [N, ro+rd+rgb, H, W, 3]
-        rays_rgb = np.transpose(rays_rgb, [0,2,3,1,4]) # [N, H, W, ro+rd+rgb, 3]
-        rays_rgb = np.stack([rays_rgb[i] for i in i_train], 0) # train images only
-        rays_rgb = np.reshape(rays_rgb, [-1,3,3]) # [(N-1)*H*W, ro+rd+rgb, 3]
-        rays_rgb = rays_rgb.astype(np.float32)
-        logging.info('shuffle rays')
-        np.random.shuffle(rays_rgb)
 
-        logging.info('done')
-        i_batch = 0
+    # Ignore use_batching option for distributed training
+    # use_batching = not args.no_batching
+    # if use_batching:
+    #     # For random ray batching
+    #     logging.info('get rays')
+    #     rays = np.stack([get_rays_np(H, W, K, p) for p in poses[:,:3,:4]], 0) # [N, ro+rd, H, W, 3]
+    #     logging.info('done, concats')
+    #     rays_rgb = np.concatenate([rays, images[:,None]], 1) # [N, ro+rd+rgb, H, W, 3]
+    #     rays_rgb = np.transpose(rays_rgb, [0,2,3,1,4]) # [N, H, W, ro+rd+rgb, 3]
+    #     rays_rgb = np.stack([rays_rgb[i] for i in i_train], 0) # train images only
+    #     rays_rgb = np.reshape(rays_rgb, [-1,3,3]) # [(N-1)*H*W, ro+rd+rgb, 3]
+    #     rays_rgb = rays_rgb.astype(np.float32)
+    #     logging.info('shuffle rays')
+    #     np.random.shuffle(rays_rgb)
+
+    #     logging.info('done')
+    #     i_batch = 0
 
     # Move training data to GPU
     if use_batching:
@@ -837,7 +839,7 @@ def train():
             time0 = time.time()
 
             # Sample random ray batch
-            if use_batching:
+            if use_batching: # WE do not use batching
                 
                 '''
                 Original Code will cause last batch in an epoch to have different of data
