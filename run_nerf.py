@@ -225,8 +225,13 @@ def create_nerf(args):
             depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
             output_dim=4
         )
+    elif args.model_type == 'ResConv1d':
+        model = NeRFResConvNet1d(
+            depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+            output_dim=4
+        )
     else:
-        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer]')
+        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
     grad_vars = list(model.parameters())
 
     # Inspect model parameter size
@@ -252,8 +257,13 @@ def create_nerf(args):
                 depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
             )
+        elif args.model_type == 'ResConv1d':
+            model_fine = NeRFResConvNet1d(
+                depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+                output_dim=4
+            )
         else:
-            sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer]')
+            sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
         
         grad_vars += list(model_fine.parameters())
 
@@ -273,8 +283,13 @@ def create_nerf(args):
                                                                     embed_fn=embed_fn,
                                                                     embeddirs_fn=embeddirs_fn,
                                                                     netchunk=args.netchunk)
+    elif args.model_type == 'ResConv1d':
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
+                                                                    embed_fn=embed_fn,
+                                                                    embeddirs_fn=embeddirs_fn,
+                                                                    netchunk=args.netchunk)
     else:
-        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer]')
+        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
 
     # Create optimizer
     optimizer = torch.optim.Adam(params=grad_vars, lr=args.lrate, betas=(0.9, 0.999))
@@ -539,6 +554,10 @@ def config_parser():
     parser.add_argument("--ft_path", type=str, default=None, 
                         help='specific weights npy file to reload for coarse network')
     
+    # Optional Config keywords for Residual Conv and Residual NeRFFormer
+    parser.add_argument("--skip_interval", type=int, default=2, 
+                        help='layer number in a residual block')
+    
     # training options for transformer
     parser.add_argument('--transformer_depth', type=int, default=3, 
                         help='number of tranformer blocks')
@@ -799,7 +818,7 @@ def train():
     N_rand = args.N_rand // args.aggre_num
 
     # Ignore use_batching option for distributed training
-    # use_batching = not args.no_batching
+    use_batching = not args.no_batching
     # if use_batching:
     #     # For random ray batching
     #     logging.info('get rays')

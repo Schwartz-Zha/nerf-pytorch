@@ -1,7 +1,9 @@
-expname = blender_lego_nobatching
+expname = blender_lego_gen_iter10000000_nobatching_logging
 basedir = ./logs
-datadir = ./data/nerf_synthetic/lego
+datadir = ./data/nerf_synthetic_gen/lego
 dataset_type = blender
+
+train_iter = 10000000
 
 no_batching = True
 
