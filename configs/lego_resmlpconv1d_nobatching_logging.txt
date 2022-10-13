@@ -1,16 +1,11 @@
-expname = blender_lego_conv1d_w128_nobatching_logging_gendata
+expname = blender_lego_mlpconv1d_nobatching_logging
 basedir = ./logs
-datadir = ./data/nerf_synthetic_gen/lego
+datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
 
 no_batching = True
 
-model_type = Conv1d
-
-train_iter = 2000000
-
-netdepth = 8
-netwidth = 128
+model_type = ResMLPConv
 
 use_viewdirs = True
 white_bkgd = True

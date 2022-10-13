@@ -460,6 +460,129 @@ class NeRFResConvNet1d(nn.Module):
         return x
 
 
+class MLPConv(nn.Module):
+    def __init__(self, depth = 8, input_dim = 90,  internal_dim = 256, output_dim= 4, 
+                 kernel_size_pt = 3, padding_pts = 1, padding_mode='replicate') -> None:
+        super(MLPConv, self).__init__()
+        self.pre_processor = nn.Sequential(
+            nn.Linear(input_dim, internal_dim),
+            nn.ReLU()
+        )
+        
+        self.mod_list = nn.ModuleList()
+            # [
+            #     nn.Sequential(
+            #         nn.Linear(internal_dim, internal_dim),
+            #         nn.ReLU(),
+            #         nn.Conv1d(in_channels=internal_dim, out_channels=internal_dim, 
+            #             kernel_size=kernel_size_pt, padding=padding_pts, padding_mode=padding_mode),
+            #         nn.ReLU()
+            #     ) for i in range(depth)
+            # ]
+        for i in range(depth):
+            if i % 2 == 0:
+                self.mod_list.append(
+                    nn.Sequential(
+                        nn.Linear(internal_dim, internal_dim),
+                        nn.ReLU()
+                    )
+                )
+            else:
+                self.mod_list.append(
+                    nn.Sequential(
+                        nn.Conv1d(in_channels=internal_dim, out_channels=internal_dim, 
+                                    kernel_size=kernel_size_pt, padding=padding_pts, padding_mode=padding_mode),
+                        nn.ReLU()
+                    )
+                )
+
+
+        self.post_processor = nn.Sequential(
+            nn.Linear(internal_dim, output_dim)
+        )
+        return 
+
+    def forward(self, x):
+
+        # Move Axis to coporate into Conv1d 
+
+        # DEBUG INFO
+        # print('forward() input shape of MLPConv')
+
+        # print(x.shape)
+
+        # x = torch.moveaxis(x, 2, 1)
+
+
+        
+        # print(x.shape)
+
+        x = self.pre_processor(x)
+        for i, module in enumerate(self.mod_list):
+            if i % 2 == 0:
+                x = module(x)
+            else:
+                # Move axis for 1D Conv to work properly
+                x = torch.moveaxis(x, 2, 1)
+                x = module(x)
+                x = torch.moveaxis(x, 1, 2)
+        
+        x = self.post_processor(x)
+
+
+        # x = torch.moveaxis(x, 1, 2)
+
+        return x
+
+
+class ResMLPConv(nn.Module):
+    def __init__(self, depth = 4, skip_interval = 2, input_dim = 90,  internal_dim = 256, output_dim= 4, 
+                 kernel_size_pt = 3, padding_pts = 1, padding_mode='replicate') -> None:
+        super(ResMLPConv, self).__init__()
+        assert depth % skip_interval == 0, "depth must be divisible by skip_interval"
+        self.pre_processor = nn.Sequential(
+            nn.Linear(input_dim, internal_dim),
+            nn.ReLU()
+        )
+        self.skip_interval = skip_interval
+        
+        self.conv_list = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(internal_dim, internal_dim),
+                    nn.ReLU(),
+                    nn.Conv1d(in_channels=internal_dim, out_channels=internal_dim, 
+                        kernel_size=kernel_size_pt, padding=padding_pts, padding_mode=padding_mode),
+                    nn.ReLU()
+                ) for i in range(depth)
+            ]
+        )
+
+        self.post_processor = nn.Sequential(
+            nn.Conv1d(in_channels=internal_dim, out_channels=output_dim, 
+                        kernel_size=kernel_size_pt, padding=padding_pts, padding_mode=padding_mode)
+        )
+        return 
+
+    def forward(self, x):
+
+        # Move Axis to coporate into Conv1d 
+        # x = torch.moveaxis(x, 2, 1)
+
+        x = self.pre_processor(x)
+        for i, module in enumerate(self.conv_list):
+            if i % self.skip_interval == 0:
+                x =  x + module(x)
+            else:
+                x = module(x)
+        
+        x = self.post_processor(x)
+
+
+        # x = torch.moveaxis(x, 1, 2)
+
+        return x
+
 
 
 

@@ -1,11 +1,11 @@
-expname = blender_lego_conv1d_nobatching
+expname = blender_lego_mlpconv1d_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
 
 no_batching = True
 
-model_type = Conv1d
+model_type = MLPConv
 
 use_viewdirs = True
 white_bkgd = True

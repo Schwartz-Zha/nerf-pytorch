@@ -24,8 +24,15 @@ from load_blender import load_blender_data
 from load_LINEMOD import load_LINEMOD_data
 
 
+##############################################
+
 # For logging the rendering time of a whole image
 import timeit
+# For logging the model FLOPS
+from fvcore.nn import FlopCountAnalysis
+
+##############################################
+
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -202,7 +209,7 @@ def render_path(render_poses, hwf, K, chunk, render_kwargs, gt_imgs=None, savedi
     return rgbs, disps
 
 
-def create_nerf(args):
+def create_nerf(args, logging):
     """Instantiate NeRF's MLP model.
     """
     embed_fn, input_ch = get_embedder(args.multires, args.i_embed)
@@ -230,6 +237,16 @@ def create_nerf(args):
         )
     elif args.model_type == 'ResConv1d':
         model = NeRFResConvNet1d(
+            depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+            output_dim=4
+        )
+    elif args.model_type == 'MLPConv':
+        model = MLPConv(
+            depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+            output_dim=4
+        )
+    elif args.model_type == 'ResMLPConv':
+        model = ResMLPConv(
             depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
             output_dim=4
         )
@@ -265,6 +282,16 @@ def create_nerf(args):
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
             )
+        elif args.model_type == 'MLPConv':
+            model_fine = MLPConv(
+                depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+                output_dim=4
+            )
+        elif args.model_type == 'ResMLPConv':
+            model_fine = ResMLPConv(
+                depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+                output_dim=4
+            )
         else:
             sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
         
@@ -291,8 +318,18 @@ def create_nerf(args):
                                                                     embed_fn=embed_fn,
                                                                     embeddirs_fn=embeddirs_fn,
                                                                     netchunk=args.netchunk)
+    elif args.model_type == 'MLPConv':
+         network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
+                                                                    embed_fn=embed_fn,
+                                                                    embeddirs_fn=embeddirs_fn,
+                                                                    netchunk=args.netchunk)
+    elif args.model_type == 'ResMLPConv':
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
+                                                                    embed_fn=embed_fn,
+                                                                    embeddirs_fn=embeddirs_fn,
+                                                                    netchunk=args.netchunk)
     else:
-        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
+        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d, MLPConv]')
 
     # Create optimizer
     optimizer = torch.optim.Adam(params=grad_vars, lr=args.lrate, betas=(0.9, 0.999))
@@ -348,6 +385,27 @@ def create_nerf(args):
     render_kwargs_test = {k : render_kwargs_train[k] for k in render_kwargs_train}
     render_kwargs_test['perturb'] = False
     render_kwargs_test['raw_noise_std'] = 0.
+
+
+    ############################### Logging model, model_fine flops
+
+    # macs, params = get_model_complexity_info(model, (1024, 64, 90), as_strings=True, 
+    #                     print_per_layer_stat=False, verbose=False)
+    # logging.info('{:<30}  {:<8}'.format('model Computational complexity: ', macs))
+    # logging.info('{:<30}  {:<8}'.format('model Number of parameters: ', params))
+
+    # macs, params = get_model_complexity_info(model_fine, (1024, 192, 90), as_strings=True, 
+    #                     print_per_layer_stat=False, verbose=False)
+    # logging.info('{:<30}  {:<8}'.format('model_fine Computational complexity: ', macs))
+    # logging.info('{:<30}  {:<8}'.format('model_fine Number of parameters: ', params))
+    with torch.no_grad():
+        model_flops =  FlopCountAnalysis(model, torch.randn(1024, 64, 90))
+        model_fine_flops = FlopCountAnalysis(model, torch.randn(1024, 192, 90))
+        logging.info(f'model_flops : {model_flops.total()}')
+        logging.info(f'model_fine_flops : {model_fine_flops.total()}')
+
+    ############################### 
+
 
     return render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer
 
@@ -782,7 +840,7 @@ def train():
 
     # Create nerf model
     # model is actually saved in render_kwargs_train
-    render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer = create_nerf(args)
+    render_kwargs_train, render_kwargs_test, start, grad_vars, optimizer = create_nerf(args, logging)
     global_step = start
 
     bds_dict = {
