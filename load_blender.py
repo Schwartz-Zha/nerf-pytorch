@@ -89,3 +89,6 @@ def load_blender_data(basedir, half_res=False, testskip=1):
     return imgs, poses, render_poses, [H, W, focal], i_split
 
 
+if __name__ == '__main__':
+    render_poses = torch.stack([pose_spherical(angle, -30.0, 4.0) for angle in np.linspace(-180,180,40+1)[:-1]], 0)
+    print(render_poses.shape)

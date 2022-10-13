@@ -275,6 +275,10 @@ class NeRFFormer(nn.Module):
 
         return x
 
+
+
+
+
 class NeRFViT(nn.Module):
     def __init__(self, depth = 8, alpha_depth = 4,  input_dim = 90,  output_dim= 4, internal_dim = 64,
                 heads=8, dim_head = 32, mlp_dim = 128, rays_num=1024, pts_num = 64, rays_seg_num =2, 

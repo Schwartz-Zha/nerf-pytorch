@@ -24,6 +24,9 @@ from load_blender import load_blender_data
 from load_LINEMOD import load_LINEMOD_data
 
 
+# For logging the rendering time of a whole image
+import timeit
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.random.seed(0)
@@ -972,7 +975,10 @@ def train():
 
                 # Turn on testing mode
                 with torch.no_grad():
+                    start_time = timeit.default_timer()
                     rgbs, disps = render_path(render_poses, hwf, K, args.chunk, render_kwargs_test)
+                    end_time = timeit.default_timer()
+                    logging.info(f'The lapsed time for rendering is {end_time - start_time}')
                 logging.info(f'Done, saving rgbs.shape{rgbs.shape}, disps.shape{disps.shape}')
                 moviebase = os.path.join(basedir, expname, '{}_spiral_{:06d}_'.format(expname, i))
                 imageio.mimwrite(moviebase + 'rgb.mp4', to8b(rgbs), fps=30, quality=8)
