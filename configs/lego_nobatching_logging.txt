@@ -5,6 +5,9 @@ dataset_type = blender
 
 no_batching = True
 
+netdepth = 8
+netwidth = 256
+
 use_viewdirs = True
 white_bkgd = True
 lrate_decay = 500

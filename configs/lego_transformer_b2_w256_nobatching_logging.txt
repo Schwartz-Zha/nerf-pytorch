@@ -8,7 +8,7 @@ model_type = NeRFFormer
 transformer_depth = 2
 internal_dim = 256
 
-no_batching = False
+no_batching = True
 
 use_viewdirs = True
 white_bkgd = True

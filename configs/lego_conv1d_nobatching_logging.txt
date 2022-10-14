@@ -7,6 +7,10 @@ no_batching = True
 
 model_type = Conv1d
 
+netdepth = 8
+netwidth = 256
+
+
 use_viewdirs = True
 white_bkgd = True
 lrate_decay = 500

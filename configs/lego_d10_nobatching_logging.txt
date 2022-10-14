@@ -1,16 +1,14 @@
-expname = blender_lego_resconv1d_nobatching_logging
+expname = blender_lego_d10_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
 
 no_batching = True
 
-model_type = ResConv1d
-
-netdepth = 8
+netdepth = 10
 netwidth = 256
 
-skip_interval = 2
+skips = [5]
 
 use_viewdirs = True
 white_bkgd = True

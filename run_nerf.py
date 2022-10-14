@@ -223,7 +223,7 @@ def create_nerf(args, logging):
 
     if args.model_type == 'NeRF':
         model = NeRF(D=args.netdepth, W=args.netwidth,
-                     input_ch=input_ch, output_ch=output_ch, skips=skips,
+                     input_ch=input_ch, output_ch=output_ch, skips=args.skips,
                      input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
 
     elif args.model_type == 'NeRFFormer':
@@ -264,7 +264,7 @@ def create_nerf(args, logging):
     if args.N_importance > 0:
         if args.model_type == 'NeRF':
             model_fine = NeRF(D=args.netdepth, W=args.netwidth,
-                        input_ch=input_ch, output_ch=output_ch, skips=skips,
+                        input_ch=input_ch, output_ch=output_ch, skips=args.skips,
                         input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
 
         elif args.model_type == 'NeRFFormer':
@@ -594,6 +594,8 @@ def config_parser():
                         help='layers in network')
     parser.add_argument("--netwidth", type=int, default=256, 
                         help='channels per layer')
+    parser.add_argument('--skips', nargs='+', type=int, default=[4], 
+                        help='skip layer numbers')
     parser.add_argument("--netdepth_fine", type=int, default=8, 
                         help='layers in fine network')
     parser.add_argument("--netwidth_fine", type=int, default=256, 
@@ -717,8 +719,12 @@ def train():
     basedir = args.basedir
     expname = args.expname
     os.makedirs(os.path.join(basedir, expname, 'code'), exist_ok=True)
-    logging.basicConfig(filename=os.path.join(basedir, expname, 'log.txt'), level=logging.INFO,
-                        format='[%(asctime)s.%(msecs)03d] %(message)s', datefmt='%H:%M:%S')
+    if args.render_only:
+        logging.basicConfig(filename=os.path.join(basedir, expname, 'log_render_only.txt'), level=logging.INFO,
+                            format='[%(asctime)s.%(msecs)03d] %(message)s', datefmt='%H:%M:%S')
+    else:
+        logging.basicConfig(filename=os.path.join(basedir, expname, 'log.txt'), level=logging.INFO,
+                            format='[%(asctime)s.%(msecs)03d] %(message)s', datefmt='%H:%M:%S')
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
 
@@ -869,7 +875,12 @@ def train():
             os.makedirs(testsavedir, exist_ok=True)
             logging.info(f'test poses shape: {render_poses.shape}')
 
+            start_time = timeit.default_timer()
             rgbs, _ = render_path(render_poses, hwf, K, args.chunk, render_kwargs_test, gt_imgs=images, savedir=testsavedir, render_factor=args.render_factor)
+            end_time = timeit.default_timer()
+            
+            logging.info(f'The lapsed time for rendering is {end_time - start_time}')
+            logging.info(f'Avarage rendering time for one image is: {(end_time - start_time) / render_poses.shape[0]}')
             logging.info(f'Done rendering: {testsavedir}')
             imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
 

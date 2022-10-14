@@ -7,6 +7,10 @@ no_batching = True
 
 model_type = ResMLPConv
 
+netdepth = 8
+netwidth = 256
+skip_interval = 2
+
 use_viewdirs = True
 white_bkgd = True
 lrate_decay = 500
