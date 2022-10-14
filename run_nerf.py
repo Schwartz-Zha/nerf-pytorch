@@ -219,7 +219,6 @@ def create_nerf(args, logging):
     if args.use_viewdirs:
         embeddirs_fn, input_ch_views = get_embedder(args.multires_views, args.i_embed)
     output_ch = 5 if args.N_importance > 0 else 4
-    skips = [4]
 
     if args.model_type == 'NeRF':
         model = NeRF(D=args.netdepth, W=args.netwidth,
@@ -720,6 +719,11 @@ def train():
     expname = args.expname
     os.makedirs(os.path.join(basedir, expname, 'code'), exist_ok=True)
     if args.render_only:
+
+        # Delete previous log
+        if os.path.exists(os.path.join(basedir, expname, 'log_render_only.txt')):
+            os.remove(os.path.join(basedir, expname, 'log_render_only.txt'))
+
         logging.basicConfig(filename=os.path.join(basedir, expname, 'log_render_only.txt'), level=logging.INFO,
                             format='[%(asctime)s.%(msecs)03d] %(message)s', datefmt='%H:%M:%S')
     else:
@@ -866,7 +870,7 @@ def train():
         with torch.no_grad():
             if args.render_test:
                 # render_test switches to test poses
-                images = images[i_test]
+                images = torch.Tensor(images[i_test])
             else:
                 # Default is smoother render_poses path
                 images = None
@@ -879,8 +883,43 @@ def train():
             rgbs, _ = render_path(render_poses, hwf, K, args.chunk, render_kwargs_test, gt_imgs=images, savedir=testsavedir, render_factor=args.render_factor)
             end_time = timeit.default_timer()
             
-            logging.info(f'The lapsed time for rendering is {end_time - start_time}')
-            logging.info(f'Avarage rendering time for one image is: {(end_time - start_time) / render_poses.shape[0]}')
+            
+            
+            
+
+            if args.render_test:
+                # Compute the average mse and psnr on the testset
+                assert images.shape[0] == render_poses.shape[0], 'images and render_poses num must match!'
+                assert images.shape[0] == rgbs.shape[0], 'images and rgbs num must match!'
+
+                mse_total = 0.
+                psnr_total = 0.
+
+                for i in range(images.shape[0]):
+                    rgb = torch.Tensor(rgbs[i])
+                    image = images[i]
+
+                    # DEBUG INFO
+                    # print(f'rgb type {type(rgb)}')
+                    # print(f'image type {type(image)}')
+
+                    mse = img2mse(rgb, image)
+                    psnr = mse2psnr(mse)
+
+                    logging.info(f'Rendered Image {i} has MSE: {mse.item()}, PSNR: {psnr.item()}')
+                    mse_total += mse.item()
+                    psnr_total += psnr.item()
+            
+                mse_avg = mse_total / images.shape[0]
+                psnr_avg = psnr_total / images.shape[0]
+
+                logging.info('Metric calculation completed over the test set.')
+                logging.info(f'Over the test set, average MSE: {mse_avg}, average PSNR: {psnr_avg}')
+
+
+                logging.info(f'The lapsed time for rendering is {end_time - start_time}')
+                logging.info(f'Avarage rendering time for each image in {render_poses.shape[0]} images is: {(end_time - start_time) / render_poses.shape[0]}')
+            
             logging.info(f'Done rendering: {testsavedir}')
             imageio.mimwrite(os.path.join(testsavedir, 'video.mp4'), to8b(rgbs), fps=30, quality=8)
 
