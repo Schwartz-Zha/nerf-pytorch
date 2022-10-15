@@ -241,6 +241,11 @@ def create_nerf(args, logging):
             depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
             output_dim=4
         ).to(device)
+    elif args.model_type == 'Conv2d':
+        model = NeRFConvNet2d(
+            depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+            output_dim=4
+        ).to(device)
     elif args.model_type == 'ResConv1d':
         model = NeRFResConvNet1d(
             depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
@@ -289,6 +294,11 @@ def create_nerf(args, logging):
                 depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
             ).to(device)
+        elif args.model_type == 'Conv2d':
+            model_fine = NeRFConvNet2d(
+                depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+                output_dim=4
+            ).to(device)
         elif args.model_type == 'ResConv1d':
             model_fine = NeRFResConvNet1d(
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
@@ -326,6 +336,11 @@ def create_nerf(args, logging):
                                                                     embeddirs_fn=embeddirs_fn,
                                                                     netchunk=args.netchunk)
     elif args.model_type == 'Conv1d':
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
+                                                                    embed_fn=embed_fn,
+                                                                    embeddirs_fn=embeddirs_fn,
+                                                                    netchunk=args.netchunk)
+    elif args.model_type == 'Conv2d':
         network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
                                                                     embed_fn=embed_fn,
                                                                     embeddirs_fn=embeddirs_fn,
