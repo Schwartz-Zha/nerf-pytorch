@@ -280,49 +280,51 @@ class NeRFFormer(nn.Module):
 
 
 class NeRFViT(nn.Module):
-    def __init__(self, depth = 8, alpha_depth = 4,  input_dim = 90,  output_dim= 4, internal_dim = 64,
-                heads=8, dim_head = 32, mlp_dim = 128, rays_num=1024, pts_num = 64, rays_seg_num =2, 
-                pts_seg_num = 2):
-        super(NeRFViT).__init__()
+    def __init__(self, depth = 8,  input_dim = 90,  output_dim= 4, internal_dim = 64,
+                heads=8, dim_head = 32, mlp_dim = 128, rays_seg_num =2, pts_seg_num = 2):
+        super(NeRFViT, self).__init__()
 
-        assert rays_num % rays_seg_num == 0 and pts_num % pts_seg_num == 0 and alpha_depth < depth
-        num_patches = (rays_num // rays_seg_num) * (pts_num // pts_seg_num)
-        patch_dim = input_dim * rays_seg_num * pts_seg_num
+        # patch_dim = input_dim * rays_seg_num * pts_seg_num
 
-        self.to_patch_embedding = nn.Sequential(
-            Rearrange('(p1 rays_seg_num) (p2 pts_seg_num) c -> p1 p2 (rays_seg_num pts_seg_num c)',
-                      rays_seg_num = rays_seg_num, pts_seg_num = pts_seg_num),
-            nn.Linear(patch_dim, internal_dim * rays_seg_num, pts_seg_num)
-        )
+        # self.to_patch_embedding = nn.Sequential(
+        #     Rearrange('(p1 rays_seg_num) (p2 pts_seg_num) c -> p1 p2 (rays_seg_num pts_seg_num c)',
+        #               rays_seg_num = rays_seg_num, pts_seg_num = pts_seg_num),
+        #     nn.Linear(patch_dim, internal_dim * rays_seg_num, pts_seg_num)
+        # )
 
-        self.pos_embedding = nn.Parameter(torch.randn(rays_num // rays_seg_num, pts_num // pts_seg_num, 
-                                            patch_dim))
+        # self.pos_embedding = nn.Parameter(torch.randn(rays_num // rays_seg_num, pts_num // pts_seg_num, 
+        #                                     patch_dim))
+
+        self.rays_seg_num = rays_seg_num
+        self.pts_seg_num = pts_seg_num
                 
-        self.transformer1 = Transformer(internal_dim, alpha_depth, heads, dim_head, mlp_dim, dropout=0.)
-        self.transformer2 = Transformer(internal_dim, depth - alpha_depth, heads, dim_head, mlp_dim, dropout = 0.)
-
-        self.alpha_processor = nn.Sequential(
-            nn.Linear(internal_dim, 1)
+        self.preprocessor = nn.Sequential(
+            nn.Linear(input_dim * rays_seg_num * pts_seg_num, internal_dim),
+            nn.ReLU()
         )
+        self.transformer = Transformer(internal_dim, depth, heads, dim_head, mlp_dim, dropout = 0.)
 
-        self.rgb_processor = nn.Sequential(
-            nn.Linear(internal_dim, output_dim - 1)
+        self.postprocessor = nn.Sequential(
+            nn.Linear( int(internal_dim / (rays_seg_num * pts_seg_num)), output_dim)
         )
+        return
 
-        return 
     def forward(self, x):
 
-        x = self.to_patch_embedding(x)
-        x += self.pos_embedding
+        # Patch embedding
+        assert x.shape[0] % self.rays_seg_num == 0, 'ray dim must be divisible by rays_seg_num'
+        assert x.shape[1] % self.pts_seg_num == 0, 'pts dim must be divisible by pts_seg_num'
+        x = rearrange(x, '(r rs) (p ps) w -> r p (rs ps w)', rs = self.rays_seg_num, ps=self.pts_seg_num)
 
-        x = self.transformer1(x)
-        alpha = self.alpha_processor(x)
+        x = self.preprocessor(x)
+        x = self.transformer(x)
+
+        # Reverse patch embedding
+        x = rearrange(x, 'r p (rs ps w) -> (r rs) (p ps) w', rs = self.rays_seg_num, ps=self.pts_seg_num)
         
-        x = self.transformer2(x)
-        rgb = self.rgb_processor(x)
-
-        out = torch.cat([alpha, rgb], -1)
-        return out
+        x = self.postprocessor(x)
+        
+        return x
 
 
 

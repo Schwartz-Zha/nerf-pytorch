@@ -229,16 +229,23 @@ def create_nerf(args, logging):
         model = NeRFFormer(depth=args.transformer_depth, input_dim=input_ch + input_ch_views, 
                         output_dim=4, internal_dim=args.internal_dim,
                         heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim).to(device)
+    elif args.model_type == 'NeRFViT':
+        model = NeRFViT(
+                depth=args.transformer_depth, input_dim=input_ch + input_ch_views, 
+                output_dim=4, internal_dim=args.internal_dim, heads=args.heads, 
+                dim_head=args.dim_head, mlp_dim=args.mlp_dim, rays_seg_num = args.rays_seg_num, 
+                pts_seg_num = args.pts_seg_num
+            ).to(device)    
     elif args.model_type == 'Conv1d':
         model = NeRFConvNet1d(
             depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
             output_dim=4
-        )
+        ).to(device)
     elif args.model_type == 'ResConv1d':
         model = NeRFResConvNet1d(
             depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
             output_dim=4
-        )
+        ).to(device)
     elif args.model_type == 'MLPConv':
         model = MLPConv(
             depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
@@ -248,7 +255,7 @@ def create_nerf(args, logging):
         model = ResMLPConv(
             depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
             output_dim=4
-        )
+        ).to(device)
     else:
         sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
     grad_vars = list(model.parameters())
@@ -270,27 +277,33 @@ def create_nerf(args, logging):
             model_fine = NeRFFormer(depth=args.transformer_depth, input_dim=input_ch + input_ch_views, 
                             output_dim=4, internal_dim=args.internal_dim,
                             heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim).to(device)
-        
+        elif args.model_type == 'NeRFViT':
+            model_fine = NeRFViT(
+                depth=args.transformer_depth, input_dim=input_ch + input_ch_views, 
+                output_dim=4, internal_dim=args.internal_dim, heads=args.heads, 
+                dim_head=args.dim_head, mlp_dim=args.mlp_dim, rays_seg_num = args.rays_seg_num, 
+                pts_seg_num = args.pts_seg_num
+            ).to(device)    
         elif args.model_type == 'Conv1d':
             model_fine = NeRFConvNet1d(
                 depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
-            )
+            ).to(device)
         elif args.model_type == 'ResConv1d':
             model_fine = NeRFResConvNet1d(
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
-            )
+            ).to(device)
         elif args.model_type == 'MLPConv':
             model_fine = MLPConv(
                 depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
-            )
+            ).to(device)
         elif args.model_type == 'ResMLPConv':
             model_fine = ResMLPConv(
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
-            )
+            ).to(device)
         else:
             sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
         
@@ -303,6 +316,11 @@ def create_nerf(args, logging):
                                                                 embeddirs_fn=embeddirs_fn,
                                                                 netchunk=args.netchunk)
     elif args.model_type == 'NeRFFormer':                                                            
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
+                                                                    embed_fn=embed_fn,
+                                                                    embeddirs_fn=embeddirs_fn,
+                                                                    netchunk=args.netchunk)
+    elif args.model_type == 'NeRFViT':
         network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
                                                                     embed_fn=embed_fn,
                                                                     embeddirs_fn=embeddirs_fn,
@@ -328,7 +346,7 @@ def create_nerf(args, logging):
                                                                     embeddirs_fn=embeddirs_fn,
                                                                     netchunk=args.netchunk)
     else:
-        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d, MLPConv]')
+        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, NeRFViT, Conv1d, ResConv1d, MLPConv, ResMLPConv]')
 
     # Create optimizer
     optimizer = torch.optim.Adam(params=grad_vars, lr=args.lrate, betas=(0.9, 0.999))
@@ -631,6 +649,10 @@ def config_parser():
                         help='dimension on each attention head')
     parser.add_argument('--mlp_dim', type=int, default=128, 
                         help='dimension size for mlp in the transformer')
+
+    # Additional options for NeRFViT
+    parser.add_argument('--rays_seg_num', type=int, default=2)
+    parser.add_argument('--pts_seg_num', type=int, default=2)
     
 
     # rendering options

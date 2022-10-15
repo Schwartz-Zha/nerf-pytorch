@@ -1,0 +1,27 @@
+expname = blender_lego_vit_b4_w256_nobatching_logging
+basedir = ./logs
+datadir = ./data/nerf_synthetic/lego
+dataset_type = blender
+
+model_type = NeRFViT
+
+rays_seg_num = 2
+pts_seg_num = 2
+
+transformer_depth = 4
+internal_dim = 256
+
+no_batching = True
+
+use_viewdirs = True
+white_bkgd = True
+lrate_decay = 500
+
+N_samples = 64
+N_importance = 128
+N_rand = 1024
+
+precrop_iters = 500
+precrop_frac = 0.5
+
+half_res = True
