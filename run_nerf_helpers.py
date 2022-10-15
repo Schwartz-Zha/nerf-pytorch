@@ -504,6 +504,55 @@ class NeRFResConvNet1d(nn.Module):
         return x
 
 
+class NeRFResConvNet2d(nn.Module):
+    def __init__(self, depth = 8, skip_interval = 2, input_dim = 90,  internal_dim = 256, output_dim= 4, 
+                 kernel_size = 3, padding = 1, padding_mode='replicate') -> None:
+        super(NeRFResConvNet2d, self).__init__()
+        assert depth % skip_interval == 0, "depth must be divisible by skip_interval"
+        self.skip_interval = skip_interval
+        self.pre_processor = nn.Sequential(
+            nn.Conv2d(in_channels=input_dim, out_channels=internal_dim, 
+                        kernel_size=kernel_size, padding=padding, bias=True, 
+                        padding_mode=padding_mode),
+            nn.ReLU()
+        )
+        
+        self.conv_list = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Conv2d(in_channels=internal_dim, out_channels=internal_dim, 
+                        kernel_size=kernel_size, padding=padding, padding_mode=padding_mode),
+                        nn.ReLU()
+                ) for i in range(depth)
+            ]
+        )
+
+        self.post_processor = nn.Sequential(
+            nn.Conv2d(in_channels=internal_dim, out_channels=output_dim, 
+                        kernel_size=kernel_size, padding=padding, padding_mode=padding_mode)
+        )
+
+    def forward(self, x):
+
+        # Move Axis to coporate into Conv1d 
+        x = torch.moveaxis(x, 2, 0)
+
+        x = self.pre_processor(x)
+        for i, module in enumerate(self.conv_list):
+            if i % self.skip_interval == 0:
+                x = x + module(x)
+            else:
+                x = module(x)
+        
+        x = self.post_processor(x)
+
+
+        x = torch.moveaxis(x, 0, 2)
+
+        return x
+
+
+
 class MLPConv(nn.Module):
     def __init__(self, depth = 8, input_dim = 90,  internal_dim = 256, output_dim= 4, 
                  kernel_size_pt = 3, padding_pts = 1, padding_mode='replicate') -> None:

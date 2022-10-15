@@ -251,6 +251,11 @@ def create_nerf(args, logging):
             depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
             output_dim=4
         ).to(device)
+    elif args.model_type == 'ResConv2d':
+        model = NeRFResConvNet2d(
+            depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+            output_dim=4
+        ).to(device)
     elif args.model_type == 'MLPConv':
         model = MLPConv(
             depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
@@ -304,6 +309,11 @@ def create_nerf(args, logging):
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
             ).to(device)
+        elif args.model_type == 'ResConv2d':
+            model_fine = NeRFResConvNet2d(
+                depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+                output_dim=4
+            ).to(device)
         elif args.model_type == 'MLPConv':
             model_fine = MLPConv(
                 depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
@@ -346,6 +356,11 @@ def create_nerf(args, logging):
                                                                     embeddirs_fn=embeddirs_fn,
                                                                     netchunk=args.netchunk)
     elif args.model_type == 'ResConv1d':
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
+                                                                    embed_fn=embed_fn,
+                                                                    embeddirs_fn=embeddirs_fn,
+                                                                    netchunk=args.netchunk)
+    elif args.model_type == 'ResConv2d':
         network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
                                                                     embed_fn=embed_fn,
                                                                     embeddirs_fn=embeddirs_fn,
