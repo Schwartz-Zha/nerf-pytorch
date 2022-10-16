@@ -1,3 +1,4 @@
+import enum
 from math import sqrt
 from turtle import forward, width
 import torch
@@ -553,6 +554,11 @@ class NeRFResConvNet2d(nn.Module):
 
 
 
+
+#### Mix Models
+
+
+# MLP + Conv1d
 class MLPConv(nn.Module):
     def __init__(self, depth = 8, input_dim = 90,  internal_dim = 256, output_dim= 4, 
                  kernel_size_pt = 3, padding_pts = 1, padding_mode='replicate') -> None:
@@ -602,7 +608,7 @@ class MLPConv(nn.Module):
 
         return x
 
-
+# Conv1d
 class ResMLPConv(nn.Module):
     def __init__(self, depth = 8, skip_interval = 2, input_dim = 90,  internal_dim = 256, output_dim= 4, 
                  kernel_size_pt = 3, padding_pts = 1, padding_mode='replicate') -> None:
@@ -655,6 +661,92 @@ class ResMLPConv(nn.Module):
         return x
 
 
+
+class NeRFMLPFormer(nn.Module):
+
+    def __init__(self, mix_mlp_depth = 4, mix_former_depth = 4, input_dim = 90,  output_dim= 4, internal_dim = 64,
+                heads=8, dim_head = 32, mlp_dim = 128):
+
+        super(NeRFMLPFormer, self).__init__()
+
+        self.preprocessor = nn.Sequential(
+            nn.Linear(input_dim, internal_dim),
+            nn.ReLU()
+        )
+
+        self.mlp = nn.ModuleList()
+        for _ in range(mix_mlp_depth):
+            self.mlp.append(
+                nn.Sequential(
+                    nn.Linear(internal_dim, internal_dim),
+                    nn.ReLU()
+                )
+            )
+
+
+        self.transformer = Transformer(internal_dim, mix_former_depth, heads, dim_head, mlp_dim, dropout = 0.)
+
+        self.postprocessor = nn.Sequential(
+            nn.Linear(internal_dim, output_dim)
+        )
+        return
+
+    def forward(self, x):
+
+        x = self.preprocessor(x)
+        for _, module in enumerate(self.mlp):
+            x = module(x)
+        x = self.transformer(x)
+        x = self.postprocessor(x)
+
+        return x
+
+
+
+class NeRFConv1dFormer(nn.Module):
+    def __init__(self, mix_conv1d_depth = 4, kernel_size_pt = 3, padding_pts = 1, padding_mode='replicate',
+                 mix_former_depth = 4, input_dim = 90,  output_dim= 4, internal_dim = 64,
+                 heads=8, dim_head = 32, mlp_dim = 128):
+
+        super(NeRFConv1dFormer, self).__init__()
+
+        self.preprocessor = nn.Sequential(
+            nn.Linear(input_dim, internal_dim),
+            nn.ReLU()
+        )
+
+        self.conv = nn.ModuleList()
+        for _ in range(mix_conv1d_depth):
+            self.conv.append(
+                nn.Sequential(
+                    nn.Conv1d(in_channels=internal_dim, out_channels=internal_dim, 
+                            kernel_size=kernel_size_pt, padding=padding_pts, padding_mode=padding_mode),
+                    nn.ReLU()
+                )
+            )
+
+
+        self.transformer = Transformer(internal_dim, mix_former_depth, heads, dim_head, mlp_dim, dropout = 0.)
+
+        self.postprocessor = nn.Sequential(
+            nn.Linear(internal_dim, output_dim)
+        )
+        return
+
+    def forward(self, x):
+
+        x = self.preprocessor(x)
+
+        # Move axis for 1D Conv to work properly
+        x = torch.moveaxis(x, 2, 1)
+        for _, module in enumerate(self.conv):
+            x = module(x)
+        x = torch.moveaxis(x, 1, 2)
+        
+        x = self.transformer(x)
+        x = self.postprocessor(x)
+
+        return x
 
 
 

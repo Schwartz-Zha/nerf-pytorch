@@ -256,6 +256,8 @@ def create_nerf(args, logging):
             depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
             output_dim=4
         ).to(device)
+
+    ### Mix Models
     elif args.model_type == 'MLPConv':
         model = MLPConv(
             depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
@@ -265,6 +267,20 @@ def create_nerf(args, logging):
         model = ResMLPConv(
             depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
             output_dim=4
+        ).to(device)
+    elif args.model_type == 'MLPFormer':
+        model = NeRFMLPFormer(
+            mix_mlp_depth = args.mix_mlp_depth, mix_former_depth = args.mix_former_depth, 
+            input_dim=input_ch + input_ch_views, output_dim=4, internal_dim=args.internal_dim,
+            heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim
+        ).to(device)
+    elif args.model_type == 'Conv1dFormer':
+        model = NeRFConv1dFormer(
+            mix_conv1d_depth = args.mix_conv1d_depth, kernel_size_pt=args.kernel_size, 
+            padding_pts=args.padding, padding_mode=args.padding_mode,
+            mix_former_depth=args.mix_former_depth, input_dim=input_ch + input_ch_views, 
+            output_dim=4, internal_dim=args.internal_dim,
+            heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim
         ).to(device)
     else:
         sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
@@ -314,6 +330,8 @@ def create_nerf(args, logging):
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
             ).to(device)
+        
+        # Mix models
         elif args.model_type == 'MLPConv':
             model_fine = MLPConv(
                 depth=args.netdepth, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
@@ -323,6 +341,20 @@ def create_nerf(args, logging):
             model_fine = ResMLPConv(
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
+            ).to(device)
+        elif args.model_type == 'MLPFormer':
+            model_fine = NeRFMLPFormer(
+                mix_mlp_depth = args.mix_mlp_depth, mix_former_depth = args.mix_former_depth, 
+                input_dim=input_ch + input_ch_views, output_dim=4, internal_dim=args.internal_dim,
+                heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim
+            ).to(device)
+        elif args.model_type == 'Conv1dFormer':
+            model_fine = NeRFConv1dFormer(
+                mix_conv1d_depth = args.mix_conv1d_depth, kernel_size_pt=args.kernel_size, 
+                padding_pts=args.padding, padding_mode=args.padding_mode,
+                mix_former_depth=args.mix_former_depth, input_dim=input_ch + input_ch_views, 
+                output_dim=4, internal_dim=args.internal_dim,
+                heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim
             ).to(device)
         else:
             sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
@@ -371,6 +403,16 @@ def create_nerf(args, logging):
                                                                     embeddirs_fn=embeddirs_fn,
                                                                     netchunk=args.netchunk)
     elif args.model_type == 'ResMLPConv':
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
+                                                                    embed_fn=embed_fn,
+                                                                    embeddirs_fn=embeddirs_fn,
+                                                                    netchunk=args.netchunk)
+    elif args.model_type == 'MLPFormer':
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
+                                                                    embed_fn=embed_fn,
+                                                                    embeddirs_fn=embeddirs_fn,
+                                                                    netchunk=args.netchunk)
+    elif args.model_type == 'Conv1dFormer':
         network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
                                                                     embed_fn=embed_fn,
                                                                     embeddirs_fn=embeddirs_fn,
@@ -683,6 +725,16 @@ def config_parser():
     # Additional options for NeRFViT
     parser.add_argument('--rays_seg_num', type=int, default=2)
     parser.add_argument('--pts_seg_num', type=int, default=2)
+
+    # Config for Convolution
+    parser.add_argument('--kernel_size', type=int, default=3)
+    parser.add_argument('--padding', type=int, default=1)
+    parser.add_argument('--padding_mode', type=str, default='replicate')
+
+    # Additional options for Mix models
+    parser.add_argument('--mix_mlp_depth', type=int, default=4)
+    parser.add_argument('--mix_former_depth', type=int, default=4)
+    parser.add_argument('--mix_conv1d_depth', type=int, default=4)
     
 
     # rendering options
