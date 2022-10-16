@@ -1,13 +1,17 @@
-expname = blender_lego_transformer_b2
+expname = blender_lego_conv1dformer_d4_d4_w256_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
 
-model_type = NeRFFormer
+model_type = Conv1dFormer
 
-transformer_depth = 2
 
-no_batching = False
+internal_dim = 256
+
+mix_conv1d_depth = 4
+mix_former_depth = 4
+
+no_batching = True
 
 use_viewdirs = True
 white_bkgd = True

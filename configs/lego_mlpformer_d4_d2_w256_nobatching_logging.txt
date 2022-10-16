@@ -1,4 +1,4 @@
-expname = blender_lego_mlpformer_d4_d2_b2_w256_nobatching_logging
+expname = blender_lego_mlpformer_d4_d2_w256_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
