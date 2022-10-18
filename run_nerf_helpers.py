@@ -749,6 +749,28 @@ class NeRFConv1dFormer(nn.Module):
         return x
 
 
+import torchsnooper
+import sys
+sys.path.append('./vig_pytorch')
+from vig_pytorch_demo import get_vig_model
+class NeRFViG(nn.Module):
+    def __init__(self, k=3, blocks=[1,1,1,1], channels=[90,90,90,90]):
+        """ 
+            Original Paper: 
+                * Vision GNN: An Image is Worth Graph of Nodes (NeurIPS 2022)
+           
+            Major Modification:
+                * Remove all the batch normalization layers.
+        """
+        super(NeRFViG, self).__init__()
+        self.vig = get_vig_model(k, blocks, channels)
+        
+    # @torchsnooper.snoop()
+    def forward(self, x): # (65536 90)
+        x = x.view(-1, 64, 90) # (1024 64 90)
+        x = self.vig(x) # (1024 64 4)
+        x = x.view(-1,4) # (65536 4)
+        return x
 
 
 # Ray helpers

@@ -107,9 +107,6 @@ class GraphConv2d(nn.Module):
         return self.gconv(x, edge_index, y)
 
 
-# self.graph_conv = DyGraphConv2d(in_channels, in_channels * 2, kernel_size, dilation, conv,
-#                         act, norm, bias, stochastic, epsilon, r)
-
 class DyGraphConv2d(GraphConv2d):
     """
     Dynamic graph convolution layer
@@ -122,11 +119,10 @@ class DyGraphConv2d(GraphConv2d):
         self.r = r
         self.dilated_knn_graph = DenseDilatedKnnGraph(kernel_size, dilation, stochastic, epsilon)
 
-    # @torchsnooper.snoop()
     def forward(self, x, relative_pos=None):
         B, C, H, W = x.shape
         y = None
-        if self.r > 1:
+        if self.r > 1: 
             y = F.avg_pool2d(x, self.r, self.r)
             y = y.reshape(B, C, -1, 1).contiguous()            
         x = x.reshape(B, C, -1, 1).contiguous()
@@ -134,10 +130,6 @@ class DyGraphConv2d(GraphConv2d):
         x = super(DyGraphConv2d, self).forward(x, edge_index, y)
         return x.reshape(B, -1, H, W).contiguous()
 
-
-# Grapher(channels[i], num_knn[idx], min(idx // 4 + 1, max_dilation), conv, act, norm,
-#                                     bias, stochastic, epsilon, reduce_ratios[i], n=HW, drop_path=dpr[idx],
-#                                     relative_pos=False),
 
 class Grapher(nn.Module):
     """
@@ -151,25 +143,27 @@ class Grapher(nn.Module):
         self.r = r
         self.fc1 = nn.Sequential(
             nn.Conv2d(in_channels, in_channels, 1, stride=1, padding=0),
-            nn.BatchNorm2d(in_channels),
+            # nn.BatchNorm2d(in_channels),
         )
         self.graph_conv = DyGraphConv2d(in_channels, in_channels * 2, kernel_size, dilation, conv,
                               act, norm, bias, stochastic, epsilon, r)
         self.fc2 = nn.Sequential(
-            nn.Conv2d(in_channels * 2, in_channels, 1, stride=1, padding=0),
-            nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels*2, in_channels, 1, stride=1, padding=0),
+            # nn.BatchNorm2d(in_channels),
         )
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.relative_pos = None
         if relative_pos: # True # what is this?
             print('using relative_pos')
             relative_pos_tensor = torch.from_numpy(np.float32(get_2d_relative_pos_embed(in_channels,
-                int(n**0.5)))).unsqueeze(0).unsqueeze(1) # n就是当前特征图的HW，开方之后就是边长
+                int(n**0.5)))).unsqueeze(0).unsqueeze(1) 
             relative_pos_tensor = F.interpolate(
                     relative_pos_tensor, size=(n, n//(r*r)), mode='bicubic', align_corners=False)
             self.relative_pos = nn.Parameter(-relative_pos_tensor.squeeze(1), requires_grad=False)
 
-    def _get_relative_pos(self, relative_pos, H, W): # what is relative_pos?
+        self.relu = nn.ReLU()
+
+    def _get_relative_pos(self, relative_pos, H, W):
         if relative_pos is None or H * W == self.n:
             return relative_pos
         else:
@@ -182,8 +176,10 @@ class Grapher(nn.Module):
         _tmp = x
         x = self.fc1(x)
         B, C, H, W = x.shape
-        relative_pos = self._get_relative_pos(self.relative_pos, H, W) # None
-        x = self.graph_conv(x, relative_pos)
+        x = self.relu(x)
+        # relative_pos = self._get_relative_pos(self.relative_pos, H, W) # None
+        relative_pos = None
+        x = self.graph_conv(x, relative_pos) 
         x = self.fc2(x)
-        x = self.drop_path(x) + _tmp # residual
+        # x = self.drop_path(x) + _tmp # residual
         return x
