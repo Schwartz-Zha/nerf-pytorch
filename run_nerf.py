@@ -488,8 +488,8 @@ def create_nerf(args, logging):
     # logging.info('{:<30}  {:<8}'.format('model_fine Computational complexity: ', macs))
     # logging.info('{:<30}  {:<8}'.format('model_fine Number of parameters: ', params))
     with torch.no_grad():
-        model_flops =  FlopCountAnalysis(model, torch.randn(1024, 64, 90))
-        model_fine_flops = FlopCountAnalysis(model, torch.randn(1024, 192, 90))
+        model_flops =  FlopCountAnalysis(model, torch.randn(1024, 64, 90)) #(65536, 90)
+        model_fine_flops = FlopCountAnalysis(model, torch.randn(1024, 192, 90)) 
         logging.info(f'model_flops : {model_flops.total()}')
         logging.info(f'model_fine_flops : {model_fine_flops.total()}')
 
@@ -1158,8 +1158,13 @@ def train():
                 optimizer.zero_grad()
                 # NOTE: IMPORTANT!
                 ###   update learning rate   ###
+                # Iter 200000
+                # Dataset 100
+
+                # Dataset 5000 -> Iter 1000000
+                # Iter 
                 decay_rate = 0.1
-                decay_steps = args.lrate_decay * 1000
+                decay_steps = args.lrate_decay * 1000  #// 250 * 1000
                 new_lrate = args.lrate * (decay_rate ** (global_step / decay_steps))
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = new_lrate
