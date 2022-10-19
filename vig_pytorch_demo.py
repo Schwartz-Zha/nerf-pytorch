@@ -25,7 +25,7 @@ from timm.optim import create_optimizer
 from timm.scheduler import create_scheduler
 from timm.utils import ApexScaler, NativeScaler
 
-from data.myloader import create_loader
+# from data.myloader import create_loader
 import pyramid_vig
 
 try:
@@ -276,6 +276,20 @@ def _parse_args():
     return args, args_text
 
 
+def get_vig_model(
+        k=3, 
+        blocks=[1,1,1,1], 
+        channels=[90,90,90,90]
+    ):
+
+    model = create_model(  
+        "pvig_s_224_gelu",
+        k=k,
+        blocks=blocks,
+        channels=channels,
+    )
+    return model
+
 def main():
     setup_default_logging()
     args, args_text = _parse_args()
@@ -311,19 +325,37 @@ def main():
 
     torch.manual_seed(args.seed + args.rank)
 
+    print(args)
+
+    # model = create_model(
+    #     args.model, # pvig_s_224_gelu
+    #     pretrained=args.pretrained, # False
+    #     num_classes=args.num_classes, # 1000
+    #     drop_rate=args.drop, # 0
+    #     drop_connect_rate=args.drop_connect,  # DEPRECATED, use drop_path # None
+    #     drop_path_rate=args.drop_path, # 0.1
+    #     drop_block_rate=args.drop_block, # None
+    #     global_pool=args.gp, # None
+    #     bn_tf=args.bn_tf, # False
+    #     bn_momentum=args.bn_momentum, # None 
+    #     bn_eps=args.bn_eps, # None
+    #     checkpoint_path=args.initial_checkpoint # ''
+    # )
+
     model = create_model(
-        args.model,
-        pretrained=args.pretrained,
-        num_classes=args.num_classes,
-        drop_rate=args.drop,
-        drop_connect_rate=args.drop_connect,  # DEPRECATED, use drop_path
-        drop_path_rate=args.drop_path,
-        drop_block_rate=args.drop_block,
-        global_pool=args.gp,
-        bn_tf=args.bn_tf,
-        bn_momentum=args.bn_momentum,
-        bn_eps=args.bn_eps,
-        checkpoint_path=args.initial_checkpoint)
+        "pvig_s_224_gelu", # pvig_s_224_gelu
+        pretrained=False, # False
+        num_classes=1000, # 1000
+        drop_rate=0, # 0
+        drop_connect_rate=None,  # DEPRECATED, use drop_path # None
+        drop_path_rate=0.1, # 0.1
+        drop_block_rate=None, # None
+        global_pool=None, # None
+        bn_tf=False, # False
+        bn_momentum=None, # None 
+        bn_eps=None, # None
+        checkpoint_path='' # ''
+    )
 
     print('Model is successfully built!')
 
@@ -332,6 +364,14 @@ def main():
     model = model.to('cuda')
     output_data = model(input_data)
     print('output_shape : ', output_data.shape)
+
+    input_data = torch.Tensor(1024, 192, 90).to('cuda')
+    print('input_shape : ', input_data.shape)
+    model = model.to('cuda')
+    output_data = model(input_data)
+    print('output_shape : ', output_data.shape)
+
+    return model
         
 
 if __name__ == '__main__':

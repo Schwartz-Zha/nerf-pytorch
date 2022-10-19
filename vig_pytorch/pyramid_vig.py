@@ -47,12 +47,12 @@ class FFN(nn.Module):
         hidden_features = hidden_features or in_features
         self.fc1 = nn.Sequential(
             nn.Conv2d(in_features, hidden_features, 1, stride=1, padding=0), # 1x1 convolution
-            nn.BatchNorm2d(hidden_features),
+            # nn.BatchNorm2d(hidden_features),
         )
         self.act = act_layer(act)
         self.fc2 = nn.Sequential(
             nn.Conv2d(hidden_features, out_features, 1, stride=1, padding=0),
-            nn.BatchNorm2d(out_features),
+            # nn.BatchNorm2d(out_features),
         )
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
@@ -61,6 +61,7 @@ class FFN(nn.Module):
         x = self.fc1(x)
         x = self.act(x)
         x = self.fc2(x)
+        return x
         x = self.drop_path(x) + shortcut
         return x#.reshape(B, C, N, 1)
 
@@ -93,8 +94,8 @@ class Downsample(nn.Module): # downsampling by a factor of 2
     def __init__(self, in_dim=3, out_dim=768):
         super().__init__()        
         self.conv = nn.Sequential(
-            nn.Conv2d(in_dim, out_dim, 3, stride=2, padding=1),
-            nn.BatchNorm2d(out_dim),
+            nn.Conv2d(in_dim, out_dim, 1, stride=1, padding=0),
+            # nn.BatchNorm2d(out_dim), # disable any normalizations
         )
 
     def forward(self, x):
@@ -109,6 +110,7 @@ class DeepGCN(torch.nn.Module):
         k = opt.k
         act = opt.act
         norm = opt.norm
+        norm = None # disable any normalizations
         bias = opt.bias
         epsilon = opt.epsilon
         stochastic = opt.use_stochastic
@@ -119,11 +121,13 @@ class DeepGCN(torch.nn.Module):
         blocks = opt.blocks
         self.n_blocks = sum(blocks)
         channels = opt.channels
-        reduce_ratios = [4, 2, 1, 1]
+        # reduce_ratios = [4, 2, 1, 1] 
+        reduce_ratios = [1,1,1,1] 
         dpr = [x.item() for x in torch.linspace(0, drop_path, self.n_blocks)]  # stochastic depth decay rule 
 
         num_knn = [int(x.item()) for x in torch.linspace(k, k, self.n_blocks)]  # number of knn's k
         max_dilation = 49 // max(num_knn)
+        # print('max_dilation', max_dilation)  # 16
         
         self.stem = Stem(out_dim=channels[0], act=act)
         # self.pos_embed = nn.Parameter(torch.zeros(1, channels[0], 224//4, 224//4))
@@ -135,11 +139,12 @@ class DeepGCN(torch.nn.Module):
         for i in range(len(blocks)):
             if i > 0:
                 pass
-                # self.backbone.append(Downsample(channels[i-1], channels[i]))
+                self.backbone.append(Downsample(channels[i-1], channels[i])) 
                 # HW = HW // 4
             for j in range(blocks[i]):
                 self.backbone += [
-                    Seq(Grapher(channels[i], num_knn[idx], min(idx // 4 + 1, max_dilation), conv, act, norm,
+                    Seq(
+                        Grapher(channels[i], num_knn[idx], min(idx // 4 + 1, max_dilation), conv, act, norm,
                                     bias, stochastic, epsilon, reduce_ratios[i], n=HW, drop_path=dpr[idx],
                                     relative_pos=False),
                           FFN(channels[i], channels[i] * 4, act=act, drop_path=dpr[idx])
@@ -153,8 +158,12 @@ class DeepGCN(torch.nn.Module):
                               nn.Dropout(opt.dropout),
                               nn.Conv2d(1024, opt.n_classes, 1, bias=True))
 
-        self.final_layer = nn.Linear(90, 4)
-        
+        self.final_layer = nn.Linear(channels[-1], 4) 
+        self.final_layer_alpha = nn.Linear(180, 1)
+        self.final_layer_rgb = nn.Linear(180, 3)
+
+        self.additional_linear = nn.Linear(180,180)
+        self.relu = nn.ReLU()
         
         self.model_init()
 
@@ -170,48 +179,30 @@ class DeepGCN(torch.nn.Module):
     # @torchsnooper.snoop()
     def forward(self, inputs):
         B, S, C = inputs.shape
-        inputs = inputs.permute(0,2,1).view(B,C,int(np.sqrt(S)),int(np.sqrt(S)))
+        # inputs = inputs.permute(0,2,1).view(B,C,int(np.sqrt(S)),int(np.sqrt(S)))
+        inputs = inputs.permute(0,2,1).unsqueeze(3)
         x = inputs
         
         for i in range(len(self.backbone)):
             x = self.backbone[i](x)
-
+            x = self.relu(x)
+      
         x = x.flatten(2).permute(0,2,1)
         result = self.final_layer(x)
         return result
 
 @register_model
-def pvig_ti_224_gelu(pretrained=False, **kwargs):
-    class OptInit:
-        def __init__(self, num_classes=1000, drop_path_rate=0.0, **kwargs):
-            self.k = 9 # neighbor num (default:9)
-            self.conv = 'mr' # graph conv layer {edge, mr}
-            self.act = 'gelu' # activation layer {relu, prelu, leakyrelu, gelu, hswish}
-            self.norm = 'batch' # batch or instance normalization {batch, instance}
-            self.bias = True # bias of conv layer True or False
-            self.dropout = 0.0 # dropout rate
-            self.use_dilation = True # use dilated knn or not
-            self.epsilon = 0.2 # stochastic epsilon for gcn
-            self.use_stochastic = False # stochastic for gcn, True or False
-            self.drop_path = drop_path_rate
-            self.blocks = [2,2,6,2] # number of basic blocks in the backbone
-            self.channels = [48, 96, 240, 384] # number of channels of deep features
-            self.n_classes = num_classes # Dimension of out_channels
-            self.emb_dims = 1024 # Dimension of embeddings
-
-    opt = OptInit(**kwargs)
-    model = DeepGCN(opt)
-    model.default_cfg = default_cfgs['vig_224_gelu']
-    return model
-
-
-@register_model
 def pvig_s_224_gelu(pretrained=False, **kwargs):
     class OptInit:
-        def __init__(self, num_classes=1000, drop_path_rate=0.0, **kwargs):
-            self.k = 3 # neighbor num (default:9)
+        def __init__(self, num_classes=1000, drop_path_rate=0.0, k=3, blocks=[1,1,1,1], channels=[90,90,90,90], **kwargs):
+
+            # k [1 3 9 16] 
+            # block [1 1 1 1] [2 2 2 2] [2 2 6 2]
+            # channel [90 90 90 90] [90 180 270 360] 
+
+            self.k = k # neighbor num (default:9)
             self.conv = 'mr' # graph conv layer {edge, mr}
-            self.act = 'gelu' # activation layer {relu, prelu, leakyrelu, gelu, hswish}
+            self.act = 'relu' # activation layer {relu, prelu, leakyrelu, gelu, hswish} 
             self.norm = 'batch' # batch or instance normalization {batch, instance}
             self.bias = True # bias of conv layer True or False
             self.dropout = 0.0 # dropout rate
@@ -219,9 +210,9 @@ def pvig_s_224_gelu(pretrained=False, **kwargs):
             self.epsilon = 0.2 # stochastic epsilon for gcn
             self.use_stochastic = False # stochastic for gcn, True or False
             self.drop_path = drop_path_rate
-            self.blocks = [2,2,6,2] # number of basic blocks in the backbone
-            # self.channels = [80, 160, 400, 640] # number of channels of deep features
-            self.channels = [90, 90, 90, 90] # number of channels of deep features
+            self.blocks = blocks # number of basic blocks in the backbone 
+            # self.channels = [80, 160, 400, 640] # number of channels of deep features 
+            self.channels = channels # number of channels of deep features
             self.n_classes = num_classes # Dimension of out_channels
             self.emb_dims = 1024 # Dimension of embeddings
 
@@ -230,52 +221,3 @@ def pvig_s_224_gelu(pretrained=False, **kwargs):
     model.default_cfg = default_cfgs['vig_224_gelu']
     return model
 
-
-@register_model
-def pvig_m_224_gelu(pretrained=False, **kwargs):
-    class OptInit:
-        def __init__(self, num_classes=1000, drop_path_rate=0.0, **kwargs):
-            self.k = 9 # neighbor num (default:9)
-            self.conv = 'mr' # graph conv layer {edge, mr}
-            self.act = 'gelu' # activation layer {relu, prelu, leakyrelu, gelu, hswish}
-            self.norm = 'batch' # batch or instance normalization {batch, instance}
-            self.bias = True # bias of conv layer True or False
-            self.dropout = 0.0 # dropout rate
-            self.use_dilation = True # use dilated knn or not
-            self.epsilon = 0.2 # stochastic epsilon for gcn
-            self.use_stochastic = False # stochastic for gcn, True or False
-            self.drop_path = drop_path_rate
-            self.blocks = [2,2,16,2] # number of basic blocks in the backbone
-            self.channels = [96, 192, 384, 768] # number of channels of deep features
-            self.n_classes = num_classes # Dimension of out_channels
-            self.emb_dims = 1024 # Dimension of embeddings
-
-    opt = OptInit(**kwargs)
-    model = DeepGCN(opt)
-    model.default_cfg = default_cfgs['vig_224_gelu']
-    return model
-
-
-@register_model
-def pvig_b_224_gelu(pretrained=False, **kwargs):
-    class OptInit:
-        def __init__(self, num_classes=1000, drop_path_rate=0.0, **kwargs):
-            self.k = 9 # neighbor num (default:9)
-            self.conv = 'mr' # graph conv layer {edge, mr}
-            self.act = 'gelu' # activation layer {relu, prelu, leakyrelu, gelu, hswish}
-            self.norm = 'batch' # batch or instance normalization {batch, instance}
-            self.bias = True # bias of conv layer True or False
-            self.dropout = 0.0 # dropout rate
-            self.use_dilation = True # use dilated knn or not
-            self.epsilon = 0.2 # stochastic epsilon for gcn
-            self.use_stochastic = False # stochastic for gcn, True or False
-            self.drop_path = drop_path_rate
-            self.blocks = [2,2,18,2] # number of basic blocks in the backbone
-            self.channels = [128, 256, 512, 1024] # number of channels of deep features
-            self.n_classes = num_classes # Dimension of out_channels
-            self.emb_dims = 1024 # Dimension of embeddings
-
-    opt = OptInit(**kwargs)
-    model = DeepGCN(opt)
-    model.default_cfg = default_cfgs['vig_b_224_gelu']
-    return model

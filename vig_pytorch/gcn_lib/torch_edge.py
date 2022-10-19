@@ -144,7 +144,7 @@ class DenseDilatedKnnGraph(nn.Module):
         self.k = k
         self._dilated = DenseDilated(k, dilation, stochastic, epsilon)
 
-    def forward(self, x, y=None, relative_pos=None):
+    def forward(self, x, y=None, relative_pos=None): 
         if y is not None:
             #### normalize
             x = F.normalize(x, p=2.0, dim=1)

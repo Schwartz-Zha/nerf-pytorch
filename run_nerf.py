@@ -282,6 +282,10 @@ def create_nerf(args, logging):
             output_dim=4, internal_dim=args.internal_dim,
             heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim
         ).to(device)
+    elif args.model_type == 'ViG':
+        model = NeRFViG(
+            k = args.vig_k, blocks = args.vig_blocks, channels = args.vig_channels
+        ).to(device)
     else:
         sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
     grad_vars = list(model.parameters())
@@ -330,6 +334,10 @@ def create_nerf(args, logging):
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
             ).to(device)
+        elif args.model_type == 'ViG':
+            model_fine = NeRFViG(
+                k = args.vig_k, blocks = args.vig_blocks, channels = args.vig_channels
+            ).to(device) 
         
         # Mix models
         elif args.model_type == 'MLPConv':
@@ -417,6 +425,12 @@ def create_nerf(args, logging):
                                                                     embed_fn=embed_fn,
                                                                     embeddirs_fn=embeddirs_fn,
                                                                     netchunk=args.netchunk)
+    elif args.model_type == 'ViG':
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_network(inputs, viewdirs, network_fn,
+                                                                embed_fn=embed_fn,
+                                                                embeddirs_fn=embeddirs_fn,
+                                                                netchunk=args.netchunk)
+
     else:
         sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, NeRFViT, Conv1d, ResConv1d, MLPConv, ResMLPConv]')
 
@@ -731,6 +745,11 @@ def config_parser():
     parser.add_argument('--padding', type=int, default=1)
     parser.add_argument('--padding_mode', type=str, default='replicate')
 
+    # Config for ViG
+    parser.add_argument('--vig_k', type=int, default=3)
+    parser.add_argument('--vig_blocks', nargs='+', type=int, default=[1,1,1,1])
+    parser.add_argument('--vig_channels', nargs='+', type=int, default=[90,90,90,90])
+
     # Additional options for Mix models
     parser.add_argument('--mix_mlp_depth', type=int, default=4)
     parser.add_argument('--mix_former_depth', type=int, default=4)
@@ -1034,21 +1053,21 @@ def train():
 
     # Ignore use_batching option for distributed training
     use_batching = not args.no_batching
-    # if use_batching:
-    #     # For random ray batching
-    #     logging.info('get rays')
-    #     rays = np.stack([get_rays_np(H, W, K, p) for p in poses[:,:3,:4]], 0) # [N, ro+rd, H, W, 3]
-    #     logging.info('done, concats')
-    #     rays_rgb = np.concatenate([rays, images[:,None]], 1) # [N, ro+rd+rgb, H, W, 3]
-    #     rays_rgb = np.transpose(rays_rgb, [0,2,3,1,4]) # [N, H, W, ro+rd+rgb, 3]
-    #     rays_rgb = np.stack([rays_rgb[i] for i in i_train], 0) # train images only
-    #     rays_rgb = np.reshape(rays_rgb, [-1,3,3]) # [(N-1)*H*W, ro+rd+rgb, 3]
-    #     rays_rgb = rays_rgb.astype(np.float32)
-    #     logging.info('shuffle rays')
-    #     np.random.shuffle(rays_rgb)
+    if use_batching:
+        # For random ray batching 
+        logging.info('get rays')
+        rays = np.stack([get_rays_np(H, W, K, p) for p in poses[:,:3,:4]], 0) # [N, ro+rd, H, W, 3]
+        logging.info('done, concats')
+        rays_rgb = np.concatenate([rays, images[:,None]], 1) # [N, ro+rd+rgb, H, W, 3]
+        rays_rgb = np.transpose(rays_rgb, [0,2,3,1,4]) # [N, H, W, ro+rd+rgb, 3]
+        rays_rgb = np.stack([rays_rgb[i] for i in i_train], 0) # train images only
+        rays_rgb = np.reshape(rays_rgb, [-1,3,3]) # [(N-1)*H*W, ro+rd+rgb, 3]
+        rays_rgb = rays_rgb.astype(np.float32)
+        logging.info('shuffle rays')
+        np.random.shuffle(rays_rgb)
 
-    #     logging.info('done')
-    #     i_batch = 0
+        logging.info('done')
+        i_batch = 0
 
     # Move training data to GPU
     if use_batching:
