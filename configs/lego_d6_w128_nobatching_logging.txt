@@ -1,14 +1,15 @@
-expname = blender_lego_d12_nobatching_logging
+expname = blender_lego_d6_w128_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_synthetic/lego
 dataset_type = blender
 
 no_batching = True
 
-netdepth = 12
-netwidth = 256
+netdepth = 6
+netwidth = 128
 
-skips = [6]
+skips = [3]
+
 
 use_viewdirs = True
 white_bkgd = True
