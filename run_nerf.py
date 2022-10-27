@@ -692,6 +692,9 @@ def config_parser():
     parser.add_argument('--aggre_num', type=int, default=1, 
                         help='number of aggregated iteration')
 
+    # Random Rays Options
+    parser.add_argument('--continuous_rays', action='store_true')
+
     # training options
     parser.add_argument("--netdepth", type=int, default=8, 
                         help='layers in network')
@@ -1145,7 +1148,16 @@ def train():
                         coords = torch.stack(torch.meshgrid(torch.linspace(0, H-1, H), torch.linspace(0, W-1, W)), -1)  # (H, W, 2)
 
                     coords = torch.reshape(coords, [-1,2])  # (H * W, 2)
-                    select_inds = np.random.choice(coords.shape[0], size=[N_rand], replace=False)  # (N_rand,)
+                    select_inds = None
+                    if args.continuous_rays:
+                        ind_start = np.random.choice(coords.shape[0])
+                        if (N_rand + ind_start) < coords.shape[0]:
+                            select_inds = np.arange(ind_start, ind_start+N_rand, 1)
+                        else:
+                            select_inds = np.arange(ind_start, coords.shape[0], 1)
+                            np.append(select_inds, np.arange(0, N_rand - select_inds.size))
+                    else:    
+                        select_inds = np.random.choice(coords.shape[0], size=[N_rand], replace=False)  # (N_rand,)
                     select_coords = coords[select_inds].long()  # (N_rand, 2)
                     rays_o = rays_o[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
                     rays_d = rays_d[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
@@ -1180,8 +1192,7 @@ def train():
                 # Iter 200000
                 # Dataset 100
 
-                # Dataset 5000 -> Iter 1000000
-                # Iter 
+                
                 decay_rate = 0.1
                 decay_steps = args.lrate_decay * 1000  #// 250 * 1000
                 new_lrate = args.lrate * (decay_rate ** (global_step / decay_steps))
