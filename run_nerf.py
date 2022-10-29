@@ -864,7 +864,8 @@ def train():
     # Create logger
     basedir = args.basedir
     expname = args.expname
-    os.makedirs(os.path.join(basedir, expname, 'code'), exist_ok=True)
+    if not args.render_only:
+        os.makedirs(os.path.join(basedir, expname, 'code'), exist_ok=True)
     if args.render_only:
 
         # Delete previous log
@@ -882,13 +883,13 @@ def train():
     # Logging Code Files
     
 
-    
-    shutil.copyfile('run_nerf.py', os.path.join(basedir, expname, 'code', 'run_nerf.py'))
-    shutil.copyfile('run_nerf_helpers.py', os.path.join(basedir, expname, 'code', 'run_nerf_helpers.py'))
-    shutil.copyfile('load_blender.py', os.path.join(basedir, expname, 'code','load_blender.py'))
-    shutil.copyfile('load_deepvoxels.py', os.path.join(basedir, expname, 'code', 'load_deepvoxels.py'))
-    shutil.copyfile('load_LINEMOD.py', os.path.join(basedir, expname, 'code', 'load_LINEMOD.py'))
-    shutil.copyfile('load_llff.py', os.path.join(basedir, expname, 'code','load_llff.py'))
+    if not args.render_only:
+        shutil.copyfile('run_nerf.py', os.path.join(basedir, expname, 'code', 'run_nerf.py'))
+        shutil.copyfile('run_nerf_helpers.py', os.path.join(basedir, expname, 'code', 'run_nerf_helpers.py'))
+        shutil.copyfile('load_blender.py', os.path.join(basedir, expname, 'code','load_blender.py'))
+        shutil.copyfile('load_deepvoxels.py', os.path.join(basedir, expname, 'code', 'load_deepvoxels.py'))
+        shutil.copyfile('load_LINEMOD.py', os.path.join(basedir, expname, 'code', 'load_LINEMOD.py'))
+        shutil.copyfile('load_llff.py', os.path.join(basedir, expname, 'code','load_llff.py'))
 
     
 
@@ -984,13 +985,13 @@ def train():
 
     # Create log dir and copy the config file
     
-    
-    f = os.path.join(basedir, expname, 'args.txt')
-    with open(f, 'w') as file:
-        for arg in sorted(vars(args)):
-            attr = getattr(args, arg)
-            file.write('{} = {}\n'.format(arg, attr))
-    if args.config is not None:
+    if not args.render_only:
+        f = os.path.join(basedir, expname, 'args.txt')
+        with open(f, 'w') as file:
+            for arg in sorted(vars(args)):
+                attr = getattr(args, arg)
+                file.write('{} = {}\n'.format(arg, attr))
+    if args.config is not None and not args.render_only:
         f = os.path.join(basedir, expname, 'config.txt')
         with open(f, 'w') as file:
             file.write(open(args.config, 'r').read())
