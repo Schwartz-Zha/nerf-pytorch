@@ -249,17 +249,17 @@ def create_nerf(args, logging):
     elif args.model_type == 'ResConv1d':
         model = NeRFResConvNet1d(
             depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
-            output_dim=4
+            output_dim=4, kernel_size_pt=args.kernel_size, padding_pts=args.padding
         ).to(device)
     elif args.model_type == 'ResConv2d':
         model = NeRFResConvNet2d(
             depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
-            output_dim=4
+            output_dim=4, kernel_size=args.kernel_size, padding=args.padding
         ).to(device)
     elif args.model_type == 'ResDeformConv2d':
         model = NeRFDeformConv2d(
             depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
-            output_dim=4, num_rays=1024, num_pts=64
+            output_dim=4, num_rays=1024, num_pts=64, kernel_size=args.kernel_size, padding=tuple(args.padding_2d)
         ).to(device)
 
     ### Mix Models
@@ -332,17 +332,17 @@ def create_nerf(args, logging):
         elif args.model_type == 'ResConv1d':
             model_fine = NeRFResConvNet1d(
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
-                output_dim=4
+                output_dim=4, kernel_size_pt=args.kernel_size, padding_pts=args.padding
             ).to(device)
         elif args.model_type == 'ResConv2d':
             model_fine = NeRFResConvNet2d(
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
-                output_dim=4
+                output_dim=4, kernel_size=args.kernel_size, padding=args.padding
             ).to(device)
         elif args.model_type == 'ResDeformConv2d':
             model_fine = NeRFDeformConv2d(
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
-                output_dim=4, num_rays=1024, num_pts=192
+                output_dim=4, num_rays=1024, num_pts=192, kernel_size=args.kernel_size, padding=tuple(args.padding_2d)
             ).to(device)
         elif args.model_type == 'ViG':
             model_fine = NeRFViG(
@@ -742,6 +742,7 @@ def config_parser():
     parser.add_argument("--skip_interval", type=int, default=2, 
                         help='layer number in a residual block')
     
+    
     # training options for transformer
     parser.add_argument('--transformer_depth', type=int, default=3, 
                         help='number of tranformer blocks')
@@ -762,6 +763,7 @@ def config_parser():
     parser.add_argument('--kernel_size', type=int, default=3)
     parser.add_argument('--padding', type=int, default=1)
     parser.add_argument('--padding_mode', type=str, default='replicate')
+    parser.add_argument('--padding_2d', nargs='+', type=int, default=[1,1])
 
     # Config for ViG
     parser.add_argument('--vig_k', type=int, default=3)

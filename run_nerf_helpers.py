@@ -565,17 +565,19 @@ class NeRFDeformConv2d(nn.Module):
         self.skip_interval = skip_interval
         self.depth = depth
 
-        self.pre_deform_offset = nn.Parameter(torch.randn(1, 18, num_rays, num_pts))
-        self.pre_deform_weight = nn.Parameter(torch.randn(internal_dim ,input_dim, 3, 3))
+        self.pre_deform_offset = nn.Parameter(torch.randn(1, 2 * kernel_size * kernel_size, num_rays, num_pts))
+        self.pre_deform_weight = nn.Parameter(torch.randn(internal_dim ,input_dim, kernel_size, kernel_size))
         self.pre_deform_bias = nn.Parameter(torch.randn(internal_dim))
         
         self.padding = padding
-        self.deform_offset_list = nn.ParameterList([nn.Parameter(torch.randn(1, 18, num_rays, num_pts)) 
+        self.deform_offset_list = nn.ParameterList([nn.Parameter(torch.randn(1, 
+                            2 * kernel_size  * kernel_size, num_rays, num_pts)) 
                                                     for i in range(depth)])
-        self.deform_weight_list = nn.ParameterList([nn.Parameter(torch.randn(internal_dim,internal_dim,3,3))
+        self.deform_weight_list = nn.ParameterList([nn.Parameter(
+            torch.randn(internal_dim,internal_dim,kernel_size,kernel_size))
                                                     for i in range(depth)])
-        self.deform_bias_list = nn.ParameterList([nn.Parameter(torch.randn(internal_dim))
-                                                for i in range(depth)])
+        self.deform_bias_list = nn.ParameterList([nn.Parameter(
+            torch.randn(internal_dim)) for i in range(depth)])
         
         self.post_deform_offset = nn.Parameter(torch.randn(1, 18, num_rays, num_pts))
         self.post_deform_weight = nn.Parameter(torch.randn(output_dim,internal_dim, 3, 3))
