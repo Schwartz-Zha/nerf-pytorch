@@ -1,3 +1,4 @@
+from audioop import bias
 import enum
 from math import sqrt
 from turtle import forward, width
@@ -10,6 +11,9 @@ import numpy as np
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 import time
+
+# For deformableconv
+import torchvision
 
 
 # Misc
@@ -553,6 +557,64 @@ class NeRFResConvNet2d(nn.Module):
         return x
 
 
+class NeRFDeformConv2d(nn.Module):
+    def __init__(self, depth = 8, skip_interval = 2, input_dim = 90,  internal_dim = 256, output_dim= 4, 
+                 kernel_size = 3, padding = (1,1), padding_mode='replicate', num_rays=1024, num_pts=64) -> None:
+        super(NeRFDeformConv2d, self).__init__()
+        assert depth % skip_interval == 0, "depth must be divisible by skip_interval"
+        self.skip_interval = skip_interval
+        self.depth = depth
+
+        self.pre_deform_offset = nn.Parameter(torch.randn(1, 18, num_rays, num_pts))
+        self.pre_deform_weight = nn.Parameter(torch.randn(internal_dim ,input_dim, 3, 3))
+        self.pre_deform_bias = nn.Parameter(torch.randn(internal_dim))
+        
+        self.padding = padding
+        self.deform_offset_list = nn.ParameterList([nn.Parameter(torch.randn(1, 18, num_rays, num_pts)) 
+                                                    for i in range(depth)])
+        self.deform_weight_list = nn.ParameterList([nn.Parameter(torch.randn(internal_dim,internal_dim,3,3))
+                                                    for i in range(depth)])
+        self.deform_bias_list = nn.ParameterList([nn.Parameter(torch.randn(internal_dim))
+                                                for i in range(depth)])
+        
+        self.post_deform_offset = nn.Parameter(torch.randn(1, 18, num_rays, num_pts))
+        self.post_deform_weight = nn.Parameter(torch.randn(output_dim,internal_dim, 3, 3))
+        self.post_deform_bias = nn.Parameter(torch.randn(output_dim))
+
+    def forward(self, x):
+
+        # DEBUG INFO
+        # print('x.shape')
+        # print(x.shape)
+
+        # Move Axis to coporate into Conv1d 
+        x = torch.moveaxis(x, 2, 0)
+        x = x[None, :]
+
+        # Preprocess
+        x = torchvision.ops.deform_conv2d(input=x, offset=self.pre_deform_offset, 
+            weight=self.pre_deform_weight, bias=self.pre_deform_bias, padding=self.padding)
+
+        # Intermediate processing
+        for i in range(self.depth):
+            if i % self.skip_interval == 0:
+                x = x + F.relu(torchvision.ops.deform_conv2d(input=x, offset=self.deform_offset_list[i],
+                    weight=self.deform_weight_list[i], bias=self.deform_bias_list[i],
+                    padding=self.padding))
+            else:
+                x = F.relu(torchvision.ops.deform_conv2d(input=x, offset=self.deform_offset_list[i],
+                    weight=self.deform_weight_list[i], bias=self.deform_bias_list[i],
+                    padding=self.padding))
+        
+        
+
+        x = torchvision.ops.deform_conv2d(input=x, offset=self.post_deform_offset, 
+            weight=self.post_deform_weight, bias=self.post_deform_bias, padding=self.padding)
+
+        x = torch.squeeze(x)
+        x = torch.moveaxis(x, 0, 2)
+
+        return x
 
 
 #### Mix Models

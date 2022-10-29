@@ -256,6 +256,11 @@ def create_nerf(args, logging):
             depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
             output_dim=4
         ).to(device)
+    elif args.model_type == 'ResDeformConv2d':
+        model = NeRFDeformConv2d(
+            depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+            output_dim=4, num_rays=1024, num_pts=64
+        ).to(device)
 
     ### Mix Models
     elif args.model_type == 'MLPConv':
@@ -334,6 +339,11 @@ def create_nerf(args, logging):
                 depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
                 output_dim=4
             ).to(device)
+        elif args.model_type == 'ResDeformConv2d':
+            model_fine = NeRFDeformConv2d(
+                depth=args.netdepth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+                output_dim=4, num_rays=1024, num_pts=192
+            ).to(device)
         elif args.model_type == 'ViG':
             model_fine = NeRFViG(
                 k = args.vig_k, blocks = args.vig_blocks, channels = args.vig_channels
@@ -401,6 +411,11 @@ def create_nerf(args, logging):
                                                                     embeddirs_fn=embeddirs_fn,
                                                                     netchunk=args.netchunk)
     elif args.model_type == 'ResConv2d':
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
+                                                                    embed_fn=embed_fn,
+                                                                    embeddirs_fn=embeddirs_fn,
+                                                                    netchunk=args.netchunk)
+    elif args.model_type == 'ResDeformConv2d':
         network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
                                                                     embed_fn=embed_fn,
                                                                     embeddirs_fn=embeddirs_fn,
@@ -503,7 +518,7 @@ def create_nerf(args, logging):
     # logging.info('{:<30}  {:<8}'.format('model_fine Number of parameters: ', params))
     with torch.no_grad():
         model_flops =  FlopCountAnalysis(model, torch.randn(1024, 64, 90)) #(65536, 90)
-        model_fine_flops = FlopCountAnalysis(model, torch.randn(1024, 192, 90)) 
+        model_fine_flops = FlopCountAnalysis(model_fine, torch.randn(1024, 192, 90)) 
         logging.info(f'model_flops : {model_flops.total()}')
         logging.info(f'model_fine_flops : {model_fine_flops.total()}')
 
