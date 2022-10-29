@@ -30,6 +30,10 @@ from load_LINEMOD import load_LINEMOD_data
 import timeit
 # For logging the model FLOPS
 from fvcore.nn import FlopCountAnalysis
+# ssim
+from skimage.metrics import structural_similarity as ssim
+# lpips
+import lpips
 
 ##############################################
 
@@ -1037,27 +1041,66 @@ def train():
 
                 mse_total = 0.
                 psnr_total = 0.
+                ssim_total = 0.
+                lpips_alex_total = 0.
+                lpips_vgg_total = 0.
 
                 for i in range(images.shape[0]):
                     rgb = torch.Tensor(rgbs[i])
                     image = images[i]
 
-                    # DEBUG INFO
-                    # print(f'rgb type {type(rgb)}')
-                    # print(f'image type {type(image)}')
+                    # # DEBUG INFO
+                    
+                    # print(f'rgb max {torch.max(rgb)}')
+                    # print(f'rgb min {torch.min(rgb)}')
+                    # print(f'image max {torch.max(image)}')
+                    # print(f'image min {torch.min(image)}')
+                    # exit(1)
 
+
+                    # mse psnr ssim lpips 
                     mse = img2mse(rgb, image)
                     psnr = mse2psnr(mse)
 
-                    logging.info(f'Rendered Image {i} has MSE: {mse.item()}, PSNR: {psnr.item()}')
+                    # ssim
+                    loss_ssim = ssim(rgb.cpu().numpy(), image.cpu().numpy(), multichannel=True)
+
+                    # for lpips, normalize to [-1,1] first
+                    loss_fn_alex = lpips.LPIPS(net='alex') # best forward scores
+                    loss_fn_vgg = lpips.LPIPS(net='vgg') # closer to "traditional" perceptual loss, when used for optimization
+                    
+                    # DEBUG INFO
+                    # print(f'rgb shape {(rgb.shape)}')
+                    # print(f'image shape {(image.shape)}')
+                    # print(f'rgb shape {(2*(rgb-0.5)).shape}')
+                    # print(f'image shape {(2*(image-0.5)).shape}')
+
+                    lpips_alex = loss_fn_alex(2*(torch.moveaxis(rgb, 2, 0) - 0.5), 
+                                            2*(torch.moveaxis(image, 2, 0) - 0.5))
+                    lpips_vgg = loss_fn_vgg(2*(torch.moveaxis(rgb, 2, 0) - 0.5), 
+                                            2*(torch.moveaxis(image, 2, 0) - 0.5))
+
+
+
+
+                    logging.info(f'Rendered Image {i} has MSE: {mse.item()}, \
+                        PSNR: {psnr.item()}, SSIM: {loss_ssim.item()}, \
+                        lpips_alex: {lpips_alex.item()}, lpips_vgg: {lpips_vgg.item()}')
                     mse_total += mse.item()
                     psnr_total += psnr.item()
+                    ssim_total += loss_ssim.item()
+                    lpips_alex_total += lpips_alex.item()
+                    lpips_vgg_total += lpips_vgg.item()
             
                 mse_avg = mse_total / images.shape[0]
                 psnr_avg = psnr_total / images.shape[0]
+                ssim_avg = ssim_total / images.shape[0]
+                lpips_alex_avg = lpips_alex_total / images.shape[0]
+                lpips_vgg_avg = lpips_vgg_total / images.shape[0]
 
                 logging.info('Metric calculation completed over the test set.')
-                logging.info(f'Over the test set, average MSE: {mse_avg}, average PSNR: {psnr_avg}')
+                logging.info(f'Over the test set, avg MSE: {mse_avg}, avg PSNR: {psnr_avg}, \
+                    avg SSIM: {ssim_avg}, avg alex LPIPS: {lpips_alex_avg}, avg vgg LPIPS: {lpips_vgg_avg}')
 
 
                 logging.info(f'The lapsed time for rendering is {end_time - start_time}')
