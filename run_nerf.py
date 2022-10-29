@@ -1199,21 +1199,21 @@ def train():
             loss.backward()
             # optimizer.step()
 
-            if i % args.aggre_num == 0:
-                optimizer.step()
-                optimizer.zero_grad()
-                # NOTE: IMPORTANT!
-                ###   update learning rate   ###
-                # Iter 200000
-                # Dataset 100
+            # if i % args.aggre_num == 0: # Cancel this for logging learning rate
+            optimizer.step()
+            optimizer.zero_grad()
+            # NOTE: IMPORTANT!
+            ###   update learning rate   ###
+            # Iter 200000
+            # Dataset 100
 
-                
-                decay_rate = 0.1
-                decay_steps = args.lrate_decay * 1000  #// 250 * 1000
-                new_lrate = args.lrate * (decay_rate ** (global_step / decay_steps))
-                for param_group in optimizer.param_groups:
-                    param_group['lr'] = new_lrate
-                ################################
+            
+            decay_rate = 0.1
+            decay_steps = args.lrate_decay * 1000  #// 250 * 1000
+            new_lrate = args.lrate * (decay_rate ** (global_step / decay_steps))
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = new_lrate
+            ################################
 
             
 
@@ -1264,7 +1264,7 @@ def train():
 
         
             if i%args.i_print==0:
-                logging.info(f"[TRAIN] Iter: {i} Loss: {loss.item()}  PSNR: {psnr.item()}")
+                logging.info(f"[TRAIN] Iter: {i} Loss: {loss.item()}  PSNR: {psnr.item()} Learning Rate: {new_lrate}")
             """
                 print(expname, i, psnr.numpy(), loss.numpy(), global_step.numpy())
                 print('iter time {:.05f}'.format(dt))
