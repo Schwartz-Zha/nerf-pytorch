@@ -1,0 +1,26 @@
+expname = blender_drums_resconv1d_d6_w128_nobatching_logging
+basedir = ./logs
+datadir = ./data/nerf_synthetic/drums
+dataset_type = blender
+
+no_batching = True
+
+model_type = ResConv1d
+
+netdepth = 6
+netwidth = 128
+
+skip_interval = 2
+
+use_viewdirs = True
+white_bkgd = True
+lrate_decay = 500
+
+N_samples = 64
+N_importance = 128
+N_rand = 1024
+
+precrop_iters = 500
+precrop_frac = 0.5
+
+half_res = True
