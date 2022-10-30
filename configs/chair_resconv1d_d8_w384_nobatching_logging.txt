@@ -1,12 +1,16 @@
-expname = blender_chair_d8_w256_nobatching_logging
+expname = blender_chair_resconv1d_d8_w384_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_synthetic/chair
 dataset_type = blender
 
 no_batching = True
 
+model_type = ResConv1d
+
 netdepth = 8
-netwidth = 256
+netwidth = 384
+
+skip_interval = 2
 
 use_viewdirs = True
 white_bkgd = True
