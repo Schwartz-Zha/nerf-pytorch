@@ -93,15 +93,52 @@ def batchify_rays(rays_flat, chunk=1024*32, **kwargs):
     """Render rays in smaller minibatches to avoid OOM.
     """
     all_ret = {}
-    for i in range(0, rays_flat.shape[0], chunk):
-        ret = render_rays(rays_flat[i:i+chunk], **kwargs)
+
+    # DEBUG INFO
+    # print('chunk in batchify_rays')
+    # print(chunk)
+    # print('rays_flat.shape in batchify_rays')
+    # print(rays_flat.shape)
+    # print(type(rays_flat.shape[0]))
+
+    if rays_flat.shape[0] % chunk == 0:
+        for i in range(0, rays_flat.shape[0], chunk):
+            ret = render_rays(rays_flat[i:i+chunk], **kwargs)
+            for k in ret:
+                if k not in all_ret:
+                    all_ret[k] = []
+                all_ret[k].append(ret[k])
+
+        all_ret = {k : torch.cat(all_ret[k], 0) for k in all_ret}
+        return all_ret
+    else:
+        remainder = rays_flat.shape[0] % chunk
+        for i in range(0, rays_flat.shape[0] - remainder, chunk):
+            ret = render_rays(rays_flat[i:i+chunk], **kwargs)
+            for k in ret:
+                if k not in all_ret:
+                    all_ret[k] = []
+                all_ret[k].append(ret[k])
+        # Extra operation for last batch
+        last_batch = rays_flat[rays_flat.shape[0] - chunk : rays_flat.shape[0]]
+        ret = render_rays(last_batch, **kwargs)
+        # print(ret.keys())
         for k in ret:
             if k not in all_ret:
                 all_ret[k] = []
-            all_ret[k].append(ret[k])
+            # Discard the useless redundant part
 
-    all_ret = {k : torch.cat(all_ret[k], 0) for k in all_ret}
-    return all_ret
+            # DEBUG INFO
+            # print('ret[k].shape before discarding')
+            # print(ret[k].shape)
+            ret[k] = ret[k][chunk - remainder:chunk]
+            # print('ret[k].shape after discarding')
+            # print(ret[k].shape)
+            all_ret[k].append(ret[k])
+            
+        all_ret = {k : torch.cat(all_ret[k], 0) for k in all_ret}
+        return all_ret
+
 
 
 def render(H, W, K, chunk=1024*32, rays=None, c2w=None, ndc=True,
@@ -159,6 +196,11 @@ def render(H, W, K, chunk=1024*32, rays=None, c2w=None, ndc=True,
     rays = torch.cat([rays_o, rays_d, near, far], -1)
     if use_viewdirs:
         rays = torch.cat([rays, viewdirs], -1)
+
+
+    # DEBUG INFO 
+    # print('rays.shape in render()')
+    # print(rays.shape)    
 
     # Render and reshape
     all_ret = batchify_rays(rays, chunk, **kwargs)
