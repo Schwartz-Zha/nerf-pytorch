@@ -14,16 +14,16 @@ from datetime import datetime
 
 import torch
 import torch.nn as nn
-import torchvision.utils
+# import torchvision.utils
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 
-from timm.data import Dataset, resolve_data_config, Mixup, FastCollateMixup, AugMixDataset #, create_loader
+# from timm.data import Dataset, resolve_data_config, Mixup, FastCollateMixup, AugMixDataset #, create_loader
 from timm.models import create_model, resume_checkpoint, convert_splitbn_model
 from timm.utils import *
-from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy, JsdCrossEntropy
-from timm.optim import create_optimizer
-from timm.scheduler import create_scheduler
-from timm.utils import ApexScaler, NativeScaler
+# from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy, JsdCrossEntropy
+# from timm.optim import create_optimizer
+# from timm.scheduler import create_scheduler
+# from timm.utils import ApexScaler, NativeScaler
 
 # from data.myloader import create_loader
 import pyramid_vig
