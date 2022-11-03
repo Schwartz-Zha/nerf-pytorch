@@ -1,14 +1,14 @@
-expname = llff_fortress_resconv1d_d8_w384_nobatching_logging
+expname = llff_horns_resconv1d_d6_w128_nobatching_logging
 basedir = ./logs
-datadir = ./data/nerf_llff_data/fortress/
+datadir = ./data/nerf_llff_data/horns/
 dataset_type = llff
 
 no_batching = True
 
 model_type = ResConv1d
 
-netdepth = 8
-netwidth = 384
+netdepth = 6
+netwidth = 128
 
 skip_interval = 2
 

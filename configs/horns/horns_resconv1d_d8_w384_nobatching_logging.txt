@@ -1,6 +1,6 @@
-expname = llff_fortress_resconv1d_d8_w384_nobatching_logging
+expname = llff_horns_resconv1d_d8_w384_nobatching_logging
 basedir = ./logs
-datadir = ./data/nerf_llff_data/fortress/
+datadir = ./data/nerf_llff_data/horns/
 dataset_type = llff
 
 no_batching = True

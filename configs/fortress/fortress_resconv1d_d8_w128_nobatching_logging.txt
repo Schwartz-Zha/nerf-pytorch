@@ -1,6 +1,6 @@
 expname = llff_fortress_resconv1d_d8_w128_nobatching_logging
 basedir = ./logs
-datadir = ./data/nerf_llff_data/flower/
+datadir = ./data/nerf_llff_data/fortress/
 dataset_type = llff
 
 no_batching = True
