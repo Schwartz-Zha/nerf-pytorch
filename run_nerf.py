@@ -270,6 +270,10 @@ def create_nerf(args, logging):
         model = NeRF(D=args.netdepth, W=args.netwidth,
                      input_ch=input_ch, output_ch=output_ch, skips=args.skips,
                      input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
+    if args.model_type == 'ResNeRF':
+        model = ResNeRF(D=args.netdepth, W=args.netwidth,skip_interval=args.skip_interval,
+            input_ch=input_ch, output_ch=output_ch, skips=args.skips,
+            input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
 
     elif args.model_type == 'NeRFFormer':
         model = NeRFFormer(depth=args.transformer_depth, input_dim=input_ch + input_ch_views, 
@@ -337,6 +341,11 @@ def create_nerf(args, logging):
         model = NeRFViG(
             k = args.vig_k, blocks = args.vig_blocks, channels = args.vig_channels
         ).to(device)
+    elif args.model_type == 'ResConv1dMLP':
+        model = ResConvMLP(
+            conv_depth=args.conv_depth, mlp_depth = args.mlp_depth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+            output_dim=4, kernel_size_pt=args.kernel_size, padding_pts=args.padding
+        ).to(device)
     else:
         sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
     grad_vars = list(model.parameters())
@@ -351,6 +360,10 @@ def create_nerf(args, logging):
     if args.N_importance > 0:
         if args.model_type == 'NeRF':
             model_fine = NeRF(D=args.netdepth, W=args.netwidth,
+                        input_ch=input_ch, output_ch=output_ch, skips=args.skips,
+                        input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
+        elif args.model_type == 'ResNeRF':
+            model_fine = ResNeRF(D=args.netdepth, W=args.netwidth, skip_interval = args.skip_interval,
                         input_ch=input_ch, output_ch=output_ch, skips=args.skips,
                         input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
 
@@ -420,6 +433,11 @@ def create_nerf(args, logging):
                 output_dim=4, internal_dim=args.internal_dim,
                 heads=args.heads, dim_head=args.dim_head, mlp_dim=args.mlp_dim
             ).to(device)
+        elif args.model_type == 'ResConv1dMLP':
+            model_fine = ResConvMLP(
+            conv_depth=args.conv_depth, mlp_depth = args.mlp_depth, skip_interval = args.skip_interval, internal_dim=args.netwidth, input_dim=input_ch+input_ch_views, 
+            output_dim=4, kernel_size_pt=args.kernel_size, padding_pts=args.padding
+        ).to(device)
         else:
             sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
         
@@ -431,6 +449,16 @@ def create_nerf(args, logging):
                                                                 embed_fn=embed_fn,
                                                                 embeddirs_fn=embeddirs_fn,
                                                                 netchunk=args.netchunk)
+    elif args.model_type == 'ResNeRF':
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_network(inputs, viewdirs, network_fn,
+                                                                embed_fn=embed_fn,
+                                                                embeddirs_fn=embeddirs_fn,
+                                                                netchunk=args.netchunk)
+    elif args.model_type == 'ResConv1dMLP':
+        network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
+                                                                    embed_fn=embed_fn,
+                                                                    embeddirs_fn=embeddirs_fn,
+                                                                    netchunk=args.netchunk)
     elif args.model_type == 'NeRFFormer':                                                            
         network_query_fn = lambda inputs, viewdirs, network_fn : run_transformer_network(inputs, viewdirs, network_fn,
                                                                     embed_fn=embed_fn,
@@ -752,6 +780,10 @@ def config_parser():
     # Training options for sub-batching and gradient aggregation
     parser.add_argument('--aggre_num', type=int, default=1, 
                         help='number of aggregated iteration')
+
+    # Options for resconv1d + MLP
+    parser.add_argument('--conv_depth', type=int, default=6, help='num of conv layers')
+    parser.add_argument('--mlp_depth', type=int, default=2, help='num of mlp layers')
 
     # Random Rays Options
     parser.add_argument('--continuous_rays', action='store_true')

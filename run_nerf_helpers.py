@@ -151,6 +151,87 @@ class NeRF(nn.Module):
         # print(outputs.shape)    
         return outputs    
 
+
+class ResNeRF(nn.Module):
+    def __init__(self, D=8, W=256, skip_interval = 2,input_ch=3, input_ch_views=3, output_ch=4, skips=[4], use_viewdirs=False):
+        """ 
+        """
+        super(ResNeRF, self).__init__()
+        self.D = D
+        self.W = W
+        self.input_ch = input_ch
+        self.input_ch_views = input_ch_views
+        self.skips = skips
+        self.use_viewdirs = use_viewdirs
+        self.skip_interval = skip_interval
+
+        self.pts_linears = nn.ModuleList(
+            [nn.Linear(input_ch, W)] + [nn.Linear(W, W) if i not in self.skips else nn.Linear(W + input_ch, W) for i in range(D-1)])
+        
+        ### Implementation according to the official code release (https://github.com/bmild/nerf/blob/master/run_nerf_helpers.py#L104-L105)
+        self.views_linears = nn.ModuleList([nn.Linear(input_ch_views + W, W//2)])
+
+        ### Implementation according to the paper
+        # self.views_linears = nn.ModuleList(
+        #     [nn.Linear(input_ch_views + W, W//2)] + [nn.Linear(W//2, W//2) for i in range(D//2)])
+        
+        if use_viewdirs:
+            self.feature_linear = nn.Linear(W, W)
+            self.alpha_linear = nn.Linear(W, 1)
+            self.rgb_linear = nn.Linear(W//2, 3)
+        else:
+            self.output_linear = nn.Linear(W, output_ch)
+
+    def forward(self, x):
+
+        # print('DEBUG in NeRF class')
+        # print('Inspect network input shape')
+        # print(x.shape)
+        # print('self.input_ch ')
+        # print(self.input_ch)
+        # print('self.input_ch_views')
+        # print(self.input_ch_views)
+
+        input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
+        h = input_pts
+
+        # print('input_pts shape')
+        # print(input_pts.shape)
+
+        # print('input_views.shape')
+        # print(input_views.shape)
+
+
+        for i, l in enumerate(self.pts_linears):
+            if i!=0 and i % self.skip_interval:
+                h = h + F.relu((self.pts_linears[i](h)))    
+            else:
+                h = F.relu((self.pts_linears[i](h)))
+            if i in self.skips:
+                # DEBUG INFO
+                h = torch.cat([input_pts, h], -1)
+
+        # print('h.shape')
+        # print(h.shape)
+
+        if self.use_viewdirs:
+            alpha = self.alpha_linear(h)
+            feature = self.feature_linear(h)
+            h = torch.cat([feature, input_views], -1)
+        
+            for i, l in enumerate(self.views_linears):
+                h = self.views_linears[i](h)
+                h = F.relu(h)
+
+            rgb = self.rgb_linear(h)
+            outputs = torch.cat([rgb, alpha], -1)
+        else:
+            outputs = self.output_linear(h)
+
+        # print('NeRF output shape')
+        # print(outputs.shape)    
+        return outputs    
+
     # def load_weights_from_keras(self, weights):
     #     assert self.use_viewdirs, "Not implemented if use_viewdirs=False"
         
@@ -724,6 +805,61 @@ class ResMLPConv(nn.Module):
 
         return x
 
+
+
+class ResConvMLP(nn.Module):
+    def __init__(self, conv_depth = 8, mlp_depth = 2, skip_interval = 2, input_dim = 90,  internal_dim = 256, output_dim= 4, 
+                 kernel_size_pt = 3, padding_pts = 1, padding_mode='replicate') -> None:
+        super(ResConvMLP, self).__init__()
+        assert conv_depth % skip_interval == 0, "depth must be divisible by skip_interval"
+        self.skip_interval = skip_interval
+        self.pre_processor = nn.Sequential(
+            nn.Linear(input_dim, internal_dim),
+            nn.ReLU()
+        )
+
+        self.conv_list = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Conv1d(in_channels=internal_dim, out_channels=internal_dim, 
+                        kernel_size=kernel_size_pt, padding=padding_pts, padding_mode=padding_mode),
+                        nn.ReLU()
+                ) for _ in range(conv_depth)
+            ]
+        )
+
+        self.mlp_list = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(internal_dim, internal_dim),
+                    nn.ReLU()
+                ) for _ in range(mlp_depth)
+            ]
+        )
+        self.post_processor = nn.Sequential(
+            nn.Linear(internal_dim, output_dim)
+        )
+        return 
+
+    def forward(self, x):
+
+        x = self.pre_processor(x)
+        for i, module in enumerate(self.conv_list):
+            if i % self.skip_interval == 0:
+                # Move axis for 1D Conv to work properly
+                x = torch.moveaxis(x, 2, 1)
+                x = x + module(x)
+                x = torch.moveaxis(x, 1, 2)
+            else:
+                # Move axis for 1D Conv to work properly
+                x = torch.moveaxis(x, 2, 1)
+                x = module(x)
+                x = torch.moveaxis(x, 1, 2)
+        for _, module in enumerate(self.mlp_list):
+            x = module(x)
+        x = self.post_processor(x)
+
+        return x
 
 
 class NeRFMLPFormer(nn.Module):
