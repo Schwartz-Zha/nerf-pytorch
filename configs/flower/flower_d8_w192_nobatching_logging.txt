@@ -5,6 +5,8 @@ dataset_type = llff
 
 no_batching = True
 
+model_type = NeRF
+
 netdepth = 8
 netwidth = 192
 

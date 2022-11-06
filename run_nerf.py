@@ -270,7 +270,7 @@ def create_nerf(args, logging):
         model = NeRF(D=args.netdepth, W=args.netwidth,
                      input_ch=input_ch, output_ch=output_ch, skips=args.skips,
                      input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
-    if args.model_type == 'ResNeRF':
+    elif args.model_type == 'ResNeRF':
         model = ResNeRF(D=args.netdepth, W=args.netwidth,skip_interval=args.skip_interval,
             input_ch=input_ch, output_ch=output_ch, skips=args.skips,
             input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
@@ -347,7 +347,7 @@ def create_nerf(args, logging):
             output_dim=4, kernel_size_pt=args.kernel_size, padding_pts=args.padding
         ).to(device)
     else:
-        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
+        sys.exit('model_type not supprted 1, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
     grad_vars = list(model.parameters())
 
     # Inspect model parameter size
@@ -439,7 +439,7 @@ def create_nerf(args, logging):
             output_dim=4, kernel_size_pt=args.kernel_size, padding_pts=args.padding
         ).to(device)
         else:
-            sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
+            sys.exit('model_type not supprted 2, shound be in [NeRF, NeRFFormer, Conv1d, ResConv1d]')
         
         grad_vars += list(model_fine.parameters())
 
@@ -521,7 +521,7 @@ def create_nerf(args, logging):
                                                                 netchunk=args.netchunk)
 
     else:
-        sys.exit('model_type not supprted, shound be in [NeRF, NeRFFormer, NeRFViT, Conv1d, ResConv1d, MLPConv, ResMLPConv]')
+        sys.exit('model_type not supprted 3, shound be in [NeRF, NeRFFormer, NeRFViT, Conv1d, ResConv1d, MLPConv, ResMLPConv]')
 
     # Create optimizer
     optimizer = torch.optim.Adam(params=grad_vars, lr=args.lrate, betas=(0.9, 0.999))
