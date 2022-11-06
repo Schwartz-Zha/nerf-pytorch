@@ -1,4 +1,4 @@
-expname = blender_gotdog_d8_w192_nobatching_logging
+expname = blender_hotdog_d8_w192_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_synthetic/hotdog/
 dataset_type = blender
