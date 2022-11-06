@@ -1,4 +1,4 @@
-expname = blender_flower_d8_w128_nobatching_logging
+expname = llff_flower_d8_w128_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_llff_data/flower/
 dataset_type = llff
