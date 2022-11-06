@@ -1,4 +1,4 @@
-expname = llff_fortress_d8_w92_nobatching_logging
+expname = llff_fortress_d8_w192_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_llff_data/fortress/
 dataset_type = llff
