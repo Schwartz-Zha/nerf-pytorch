@@ -1,4 +1,4 @@
-expname = blender_fern_resconv1d_d8_w320_nobatching_logging
+expname = llff_fern_resconv1d_d8_w320_nobatching_logging
 basedir = ./logs
 datadir = ./data/nerf_llff_data/fern
 dataset_type = llff
